@@ -2,11 +2,12 @@ import os
 import logging
 from waveform import generate_waveform, generate_waveform_pillow, generate_waveform_rosa
 import waveform as wf
-from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData
+from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy, QStackedLayout
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData, QThreadPool
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter
 from utils import WidgetLayout, seconds_to_min_sec
 from mp3file import Mp3File
+from waveform_worker import WaveformWorker
 
 
 class Mp3WidgetMimeData(QMimeData):
@@ -57,6 +58,9 @@ class Mp3Widget(QWidget):
         self.playerState = self.mp3file.get_state()
 
         self.drag_start_position = QPoint()
+
+        # Thread pool for background tasks
+        self.threadpool = QThreadPool.globalInstance()
 
         self.create_ui_elements()
         self.apply_layout()
@@ -115,7 +119,8 @@ class Mp3Widget(QWidget):
         self.widget_main_frame.setLayout(self.widget_file_frame_layout)
 
         self.filename_label = QLabel(f"{os.path.basename(self.mp3file.file_name)}")
-        self.progress_bar = self.create_progress_bar()
+        # create_progress_bar will set self.progress_bar and self.progress_container
+        self.create_progress_bar()
         self.btnPlay = QPushButton("Play/Pause")
         self.btnPlay.setIcon(QIcon.fromTheme("media-playback-start"))
         self.btnPlay.clicked.connect(self.w_play_pause)
@@ -211,7 +216,7 @@ class Mp3Widget(QWidget):
             layout.addWidget(self.btnStop, 0, 9)
             layout.addWidget(self.slidVolume, 0, 11, 4, 1)
             layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.progress_bar, 1, 0, 2, 9)
+            layout.addWidget(self.progress_container, 1, 0, 2, 9)
             layout.addWidget(self.lblRemainingTime, 1, 9, 1, 2)
             layout.addWidget(self.lblElapsedTime, 2, 9, 1, 2)
 
@@ -237,7 +242,7 @@ class Mp3Widget(QWidget):
             layout.addWidget(self.btnStop, 0, 9, 2, 1)
             layout.addWidget(self.slidVolume, 0, 11, 4, 1)
             layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.progress_bar, 2, 0, 2, 11)
+            layout.addWidget(self.progress_container, 2, 0, 2, 11)
             layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
             layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
 
@@ -256,7 +261,7 @@ class Mp3Widget(QWidget):
             layout.addWidget(self.btnStop, 0, 9, 2, 1)
             layout.addWidget(self.slidVolume, 0, 11, 4, 1)
             layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.progress_bar, 2, 0, 2, 11)
+            layout.addWidget(self.progress_container, 2, 0, 2, 11)
             layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
             layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
 
@@ -328,16 +333,29 @@ class Mp3Widget(QWidget):
     def generate_waveform_rosa(self):
         # Delegate waveform creation to waveform module (runs synchronously)
         return wf.generate_waveform_rosa(self.mp3file.file_name, self.file_duration)
+    def on_waveform_ready(self, pixmap, path):
+        try:
+            if hasattr(self, 'waveform_label') and pixmap:
+                self.waveform_label.setPixmap(pixmap.scaled(self.waveform_label.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+        except Exception:
+            pass
+
+    def on_waveform_error(self, msg):
+        self.logger.error(f"Waveform generation error: {msg}")
 
     def create_progress_bar(self):
-        waveform_image_path = self.generate_waveform_rosa()
+        # Create a label to hold the waveform pixmap and a transparent progress bar stacked on top
+        self.waveform_label = QLabel()
+        self.waveform_label.setFixedHeight(48)
+        self.waveform_label.setScaledContents(True)
+
+        self.progress_bar = ClickableProgressBar()
+        self.progress_bar.setFixedHeight(48)
+        # Transparent background; chunk remains visible
         progress_bar_style = f"""
         QProgressBar {{
             border: 1px solid grey;
-            background-color: transparent;
-            border-image: url({waveform_image_path}) 0 0 0 0 stretch stretch;
-            background-repeat: no-repeat;
-            background-position: left center;
+            background-color: rgba(0,0,0,0);
             text-align: center;
         }}
         QProgressBar::chunk {{
@@ -345,10 +363,23 @@ class Mp3Widget(QWidget):
             width: 1px;
         }}
         """
-
-        self.progress_bar = ClickableProgressBar()
-        self.progress_bar.setFixedHeight(48)
         self.progress_bar.setStyleSheet(progress_bar_style)
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
-        return self.progress_bar
+
+        # Container with stacked layout: waveform_label behind, progress_bar on top
+        self.progress_container = QWidget()
+        stack = QStackedLayout(self.progress_container)
+        stack.addWidget(self.waveform_label)
+        stack.addWidget(self.progress_bar)
+
+        # Start background generation of waveform pixmap
+        try:
+            worker = WaveformWorker(self.mp3file.file_name, width=800, height=48)
+            worker.signals.finished.connect(self.on_waveform_ready)
+            worker.signals.error.connect(self.on_waveform_error)
+            self.threadpool.start(worker)
+        except Exception as e:
+            self.logger.error(f"Failed to start waveform worker: {e}")
+
+        return self.progress_container
