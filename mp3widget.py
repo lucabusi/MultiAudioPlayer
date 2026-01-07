@@ -326,28 +326,7 @@ class Mp3Widget(QWidget):
         return
 
     def generate_waveform_rosa(self):
-        target_sr = 11025
-        try:
-            audio, _ = librosa.load(self.mp3file.file_name, sr=target_sr, mono=True)
-        except Exception as e:
-            self.logger.error(f"Error loading audio file {self.mp3file.file_name}: {e}")
-            raise
-
-        plt.style.use('fast')
-        plt.rcParams['agg.path.chunksize'] = 10000
-        plt.figure(figsize=(10, 0.5), dpi=150)
-        plt.box(False)
-        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-        plt.margins(0, 0)
-        plt.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
-
-        librosa.display.waveshow(audio, sr=target_sr, axis=None, color='b', linewidth=0.1)
-        plt.ylim(-1, 1)
-
-        mp3WaveformImagePath = f'{os.path.basename(self.mp3file.file_name)}.jpg'
-        plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
-        print(f"{self.mp3file.file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Media: {audio.mean()*1000:.8f}")
-        plt.close()
+        # Delegate waveform creation to waveform module (runs synchronously)
         return wf.generate_waveform_rosa(self.mp3file.file_name, self.file_duration)
 
     def create_progress_bar(self):
