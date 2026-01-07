@@ -1,0 +1,30 @@
+2025-03-23 18:10:03,994 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 18:10:06,641 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 18:10:07,049 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:00:26,043 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:00:29,380 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:00:30,173 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:01:47,421 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:01:50,009 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:01:50,433 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:04:07,406 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:04:10,154 - __main__ - ERROR - Failed to open file /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3: 'NoneType' object has no attribute 'count'
+2025-03-23 19:04:10,154 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:04:10,554 - __main__ - ERROR - Failed to open file /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3: 'NoneType' object has no attribute 'count'
+2025-03-23 19:04:10,555 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:04:11,122 - __main__ - ERROR - Failed to open file /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3: 'NoneType' object has no attribute 'count'
+2025-03-23 19:10:56,462 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:10:59,367 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:10:59,766 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:12:18,508 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:12:21,768 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:12:22,169 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:14:32,878 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:14:36,109 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:14:36,921 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-23 19:18:26,115 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-23 19:18:29,227 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-23 19:18:29,629 - __main__ - INFO - Opening file: /home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3
+2025-03-24 09:35:36,935 - __main__ - INFO - Opening file: C:/Users/busil/Documents/Luca/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3
+2025-03-24 09:35:44,200 - __main__ - INFO - Opening file: C:/Users/busil/Documents/Luca/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3
+2025-03-24 09:35:44,596 - __main__ - INFO - Opening file: C:/Users/busil/Documents/Luca/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3

@@ -1,0 +1,60 @@
+Python’s naming conventions, as per PEP 8, suggest using:
+lowercase_with_underscores for variable and function names, 
+PascalCase/camelCase for class names
+UPPER_CASE_WITH_UNDERSCORES for constants.
+
+Class Mp3File
+with theese parameter:
+	actual_volume
+	actual_position
+	total_duration
+	elapsed_time
+	remaining_time
+	file_name
+	file_length
+
+and theese methods:
+	play_pause
+	stop
+	fade_in
+	fade_out
+	set_volume
+	get_volume
+	set_position
+	get_position
+
+################################
+
+Class Mp3Widget
+
+with theese parameter:
+	volume_slider_value
+	fade_time
+	elapsed_time
+	remaning_time
+
+and theese methods:
+	update_progress_bar
+	create_progress_bar
+	
+
+
+
+
+################################
+
+Classe MainApp
+
+with theese parameter:
+
+and theese methods:
+
+	init_ui
+	
+	createWidget(MP3Widget)
+	
+	open_file
+	remove_file
+	save_project
+	open_project
+

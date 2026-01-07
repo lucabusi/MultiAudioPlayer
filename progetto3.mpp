@@ -1,0 +1,36 @@
+{
+    "version": "1.0",
+    "saved_date": "2025-01-31 23:04:44",
+    "window_state": {
+        "x": 197,
+        "y": 149,
+        "width": 1261,
+        "height": 681
+    },
+    "files": [
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/2001_A_Space_Odyssey_Theme_song.mp3",
+            "volume": 66,
+            "fade_time": 5,
+            "layout": "Standard"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3",
+            "volume": 61,
+            "fade_time": 5,
+            "layout": "Standard"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3",
+            "volume": 39,
+            "fade_time": 5,
+            "layout": "Standard"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/The_Lyre_of_Orpheus.mp3",
+            "volume": 41,
+            "fade_time": 5,
+            "layout": "Standard"
+        }
+    ]
+}

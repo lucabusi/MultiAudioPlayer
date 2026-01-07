@@ -1,0 +1,1956 @@
+ i need a python script for playing multiple mp3 file with this specs:
+ - QT6 graphical interface
+ - for every MP3 file loaded there should be an independant widget with play/stop/fadeIn/FadeOut button, one clckable seekbar with waveform of the file.
+ - each widget/file must have his own independant control like volume and status
+
+
+/home/luca/prg/FlutterSDK/flutter/bin
+
+echo 'export PATH="$HOME/prg/FlutterSDK/flutter/bin:$PATH"' >> ~/.bash_profile
+###########################################################
+Layout generato da chatgpt partendo dall'immagine:
+
+
+expense_scanner/
+├── lib/
+│   ├── main.dart
+│   ├── models/
+│   │   ├── expense.dart
+│   │   └── receipt.dart
+│   ├── services/
+│   │   ├── ocr_service.dart
+│   │   ├── database_service.dart
+│   │   └── category_service.dart
+│   ├── screens/
+│   │   ├── home_screen.dart
+│   │   ├── camera_screen.dart
+│   │   ├── expense_detail_screen.dart
+│   │   └── expenses_list_screen.dart
+│   └── widgets/
+│       ├── expense_card.dart
+│       └── category_picker.dart
+├── assets/
+│   └── images/
+└── pubspec.yaml
+
+
+can you change this OCR routine, and implement a state-of-the-art IA controls that analyze a receipt (supporting an international currency and languages), using google-mlkit to retrieve category and total prices, and the detection of the time and discriminates if it is breakfast, launch or dinner?
+
+
+
+
+final receiptData = await EnhancedOCRService.scanReceipt(imagePath);
+
+print('Merchant: ${receiptData.merchant}');
+print('Total: ${receiptData.totalAmount} ${receiptData.currency}');
+print('Category: ${receiptData.category}');
+print('Confidence: ${(receiptData.confidence * 100).toStringAsFixed(1)}%');
+print('Date: ${receiptData.date?.toString() ?? 'Not detected'}');
+
+// Access individual items
+for (final item in receiptData.items) {
+ print('Item: ${item.name} - ${item.price} ${receiptData.currency}');
+}
+
+// Convert to JSON for storage
+final json = receiptData.toJson();
+
+
+
+
+
+
+
+
+
+
+
+
+####################################################################################################
+gemini
+
+
+import 'package:image_picker/image_picker.dart';
+// ... inside your widget or service
+Future<void> processImage() async {
+  final picker = ImagePicker();
+  final XFile? image = await picker.pickImage(source: ImageSource.camera); // or .gallery
+
+  if (image != null) {
+    final receiptData = await OCRService.scanReceipt(image.path);
+    print('Amount: ${receiptData['amount']}');
+    print('Merchant: ${receiptData['merchant']}');
+    print('Category: ${receiptData['category']}');
+    print('Transaction Time: ${receiptData['transactionTime']}');
+    print('Meal Type: ${receiptData['mealType']}');
+    print('Items:');
+    for (String item in receiptData['items']) {
+      print('- $item');
+    }
+    print('Raw Text:\n${receiptData['rawText']}');
+  }
+}
+
+
+#############  Remember to dispose the text recognizer:
+
+@override
+void dispose() {
+  OCRService.dispose();
+  super.dispose();
+}
+
+
+
+
+
+using IronPython for Schneider PLC, can you write a script to find all the motors configured in the sercos tree and read TrackingDeviationLimit parameter of each motor, and show a popup if some of them is not 100?
+
+
+
+
+AttributeError: 'ScriptProject' object has no attribute 'device'
+
+Could not find a SERCOS Master device after a full tree search
+
+
+
+
+                --- SCRIPT: Starting find_sercos_master ---
+                [DEBUG] --- Inspecting 'proj' (projects.primary) variable ---
+                [DEBUG]   Type: <type 'ExtendedObject[IScriptProject]'>
+                [DEBUG]   --- Inspecting Children of 'proj' via .get_children() ---
+                [DEBUG]     Type of 'children' object: <type 'List[IExtendedObject[IScriptObject]]'>
+                [DEBUG]     Number of children found: 13
+                [DEBUG]       --- Details for Child #0 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #1 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #2 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #3 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #4 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #5 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #6 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #7 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #8 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #9 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #10 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #11 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #12 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]   --- End of Children Inspection ---
+                [DEBUG] --- End Inspection of 'proj' ---
+                [INFO] Starting recursive search from 'projects.primary' object.
+                [ERROR] Script finished searching, but no SERCOS Master device was found.
+
+
+
+
+
+
+
+Ricerca del componente SERCOS Master con nome: 'SERCOSIII'
+Trovato componente SERCOS Master: List[IExtendedObject[IScriptObject]]([<_3S.CoDeSys.ScriptEngine.ExtendedObject`1[[_3S.CoDeSys.ScriptEngine.BasicFunctionality.IScriptObject, ScriptEngine, Version=3.5.10.1, Culture=neutral, PublicKeyToken=null]] object at 0x000000000000002B [ScriptObject{IoMappingExtension, NoTestCaseObject, NoTestResourceObject, NoTestSeriesObject, NoTestSetObject, SvnScriptObjectExtender, DevicePropertiesExtension, CommunicationExtension, ConvertExtension, ChildDevicesExtension, CompareExtension, NoPouObject, NoParameterListObject, NoApplicationLoggerObject, ScriptDeviceObject, NoExplicitConnectorObject, NoSymbolConfigObject, NoLibManObject, ScriptNoProjectInfoMarker, NoScriptApplicationObject, ScriptNonTextualObject, NoTaskConfigObject, NoTaskObject, NoImagePoolObject}(Project=791, Name=SERCOSIII, guid=e6c55ee9-4524-45c3-aa0f-b25c9946f907)]>])
+Ricerca dei motori (tipo 'Lexium LXM62 Drive') sotto il componente SERCOS Master...
+Si o verificato un errore durante la ricerca: 'List[IExtendedObject[IScriptObject]]' object has no attribute 'find'
+
+
+
+usando come sorgente il file XML TC107M1.xml, per ogni istanza di <Input > che ha un campo Pagina="PnlAxesCurrents", e che contiene una qualsiasi delle seguenti stringhe nel campo datoPlc="":
+
+AxisCurrentLimit
+AxisCurrentLimitManual
+MotorCurrentArray_NegThresold
+MotorCurrentArray_PosThresold
+AxisFollowingErrorMaxValue
+
+indicizzata e identificata tramite il valore del suo campo Label="...", prendere i valori contenuti nei rispettivi campi "valore" e "valorescalato", ed inserirli nelle istanze corrispondenti nel file XML di destinazione TC118M1.xml
+
+
+
+
+
+ <Input datoPlc="A:PLC1.Application.TCPIP_Data.MD.Blank.MC4_IntCartonChain.AxisCurrentLimitManual" valore="25" valorescalato="25" commento="A:MD.Blank.MC4_IntCartonChain.AxisCurrentLimitManual" UnitaMisura="%" scalatura="1" Pagina="PnlAxesCurrents" Label="0006.0208" />
+ 
+ 
+
+ Pagina="PnlAxesCurrents"
+ Label="0006.0209"
+ 
+ <Input datoPlc="
+ 
+ 
+AxisCurrentLimit
+AxisCurrentLimitManual
+MotorCurrentArray_NegThresold
+MotorCurrentArray_PosThresold
+AxisFollowingErrorMaxValue
+
+
+
+ datoPlc="A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts.LoadInertia"
+ 
+     output = dest_path.lstrip('Application.TCPIP_Data.MD') + '_updated.adx'
+	 
+
+
+
+
+    if not results:
+        ttk.Label(win, text="Nessuna coppia valida trovata.", padding=20).pack(expand=True, fill="both")
+        return
+
+    columns = ("Nome", "Label Imax", "I Max", "Label Imin", "I Min", "Controllo")
+
+
+	# Mappa: chiave interna -> intestazione visibile
+	columns = {
+	    "nome": "Nome",
+	    "label_Imax": "Label Imax",
+	    "imax": "I Max",
+	    "label_Imin": "Label Imin",
+	    "imin": "I Min",
+	    "controllo": "Controllo"
+	}
+
+
+
+    # Frame contenitore per Treeview + Scrollbar
+    tree_frame = ttk.Frame(win)
+    tree_frame.pack(fill="both", expand=True)
+
+    vsb = ttk.Scrollbar(tree_frame, orient="vertical")
+    vsb.pack(side="right", fill="y")
+    
+    tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=vsb.set)
+    tree.pack(side="left", fill="both", expand=True)
+    vsb.config(command=tree.yview)
+
+#    for col in columns:
+#        tree.heading(col, text=col)
+#        tree.column(col, anchor="center")
+#
+#    tree.column("Nome", anchor="w", width=200, minwidth=220, stretch=True)
+#    tree.column("Label Imax", anchor="center", width=80, minwidth=80, stretch=False)
+#    tree.column("I Max", anchor="center",  width=60, minwidth=60, stretch=False)
+#    tree.column("Label Imin", anchor="center", width=80, minwidth=80, stretch=False)
+#    tree.column("I Min", anchor="center", width=60, minwidth=60, stretch=False)
+#    tree.column("Controllo", anchor="center", width=80, minwidth=80, stretch=False)
+
+    tree.pack(fill="both", expand=True)
+   .D.MC4_ExitPacketTwister_	W4_7082	15	W4_7092	10	Ok
+.D.MC4_BlankStackLifter_	W4_2039	40	W4_2139	25	Ok
+
+.D.MC4_LowBundleFolder_	W4_2017	100	W4_2117	40	⚠
+.D.MC4_InFrameReel1_	W4_7267	10	W4_7584	10	⚠
+.D.MC4_BundleGroupLifter_	W4_7687	100	W4_7688	100	☠
+.D.MC4_BlankStackLifter_	W4_2039	40	W4_2139	25	Ok
+
+
+
+def aggiungi_menu_contestuale(tree, parent_window):
+    def copy_selected_to_clipboard(event=None):
+        selected_items = tree.selection()
+        if not selected_items:
+            return
+        rows = []
+        for item in selected_items:
+            values = tree.item(item, "values")
+            rows.append("\t".join(values))
+        clipboard_text = "\n".join(rows)
+        parent_window.clipboard_clear()
+        parent_window.clipboard_append(clipboard_text)
+
+    menu = tk.Menu(parent_window, tearoff=0)
+    menu.add_command(label="Copia", command=copy_selected_to_clipboard)
+
+	def show_context_menu(event):
+		iid = tree.identify_row(event.y)
+		if iid:
+			# Se la riga cliccata non è già selezionata, selezionala
+			if iid not in tree.selection():
+				tree.selection_set(iid)
+			context_menu.post(event.x_root, event.y_root)
+
+    tree.bind("<Button-3>", show_context_menu)
+    tree.bind("<Control-c>", copy_selected_to_clipboard)
+
+
+
+
+def show_context_menu(event):
+    iid = tree.identify_row(event.y)
+    if iid:
+        # Se la riga cliccata non è già selezionata, selezionala
+        if iid not in tree.selection():
+            tree.selection_set(iid)
+        context_menu.post(event.x_root, event.y_root)
+
+def ordina_treeview(tree, colonna, inverso=False):
+    # Ottieni tutti gli elementi e i loro valori
+    dati = [(tree.set(k, colonna), k) for k in tree.get_children('')]
+
+    # Ordina alfabeticamente (o numericamente se serve)
+    dati.sort(reverse=inverso)
+
+    # Riordina gli elementi nella treeview
+    for index, (valore, k) in enumerate(dati):
+        tree.move(k, '', index)
+
+    # Inverti l'ordine al prossimo click
+    tree.heading(colonna, command=lambda: ordina_treeview(tree, colonna, not inverso))
+
+
+
+
+
+
+tree.heading("NomeColonna", text="NomeColonna", command=lambda: ordina_treeview(tree, "NomeColonna"))
+
+
+
+vorrei aggiungere un pulsante che chiama una funzione. questa funzione dovrebbe chiedere l'inserimento di un parametro che poi andra cercato all'interno di una lista di file xml selezionati
+
+
+def cerca_parametro_xml():
+    file_paths = filedialog.askopenfilename(title="Seleziona ricetta da controllare",
+                                           filetypes=[("ADX", "*.adx")])
+    if not file_paths:
+        return
+
+    parametro = tk.simpledialog.askstring("Parametro", "Inserisci il parametro da cercare:")
+    if not parametro:
+        return
+
+    risultati = []
+
+    for path in file_paths:
+        try:
+            tree = ET.parse(path)
+            root = tree.getroot()
+            for inp in root.findall("Input"):
+                dato = inp.get("datoPlc", "")
+                label = inp.get("Label", "")
+                valore = inp.get("valore", "")
+
+                if parametro in dato:
+                    risultati.append((os.path.basename(path), "datoPlc", dato, valore))
+                elif parametro in label:
+                    risultati.append((os.path.basename(path), "Label", label, valore))
+        except ET.ParseError:
+            messagebox.showwarning("Errore", f"Errore nel parsing di {os.path.basename(path)}")
+
+    # Mostra i risultati in una finestra con tabella
+    win = tk.Toplevel(rootWin)
+    win.title("Risultati ricerca parametro")
+    win.geometry("750x400")
+
+    if not risultati:
+        ttk.Label(win, text="Parametro non trovato in nessun file.", padding=20).pack(expand=True, fill="both")
+        return
+
+    columns = ("file", "campo", "valore_cercato", "valore")
+    tree = ttk.Treeview(win, columns=columns, show="headings")
+    tree.heading("file", text="File")
+    tree.heading("campo", text="Campo")
+    tree.heading("valore_cercato", text="Contenuto campo")
+    tree.heading("valore", text="Valore")
+
+    tree.column("file", width=200, anchor="w")
+    tree.column("campo", width=80, anchor="center")
+    tree.column("valore_cercato", width=250, anchor="center")
+    tree.column("valore", width=100, anchor="center")
+
+    for file, campo, contenuto, valore in risultati:
+        tree.insert("", "end", values=(file, campo, contenuto, valore))
+
+    tree.pack(expand=True, fill="both")
+
+    vsb = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+
+
+
+-R008402 +0001/0084.7 RESISTENZA SALDATORE ESTERNO 3
+3 EXTERNAL WELDER RESISTOR
+
+300W MECH.SPARE PARTS TW1F033 1
+CAT
+
+
+
+btn_search_param = ttk.Button(frm, text="Cerca parametro nei file XML", command=cerca_parametro_xml)
+btn_search_param.pack(fill="x", padx=15, pady=5)
+
+
+
+228001
+
+
+
+
+TC107M1.adx	0009.0178	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisCurrentLimitManual	10
+TC107M1.adx	0009.0182	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0009.0190	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_NegThresold	0
+TC107M1.adx	0009.0193	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_PosThresold	0
+TC107M1.adx	0011.5053	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AutoCurrentCheckEnable	True
+TC107M1.adx	0011.0075	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisCurrentLimit	12
+TC107M1.adx	0011.0078	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0011.5107	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.AutoCurrentCheckEnable	True
+
+TC107M1.adx	0009.0182	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0009.0193	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_PosThresold	0
+TC107M1.adx	0011.0078	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisFollowingErrorMaxValue	2
+
+
+TC118M1_collaudo.adx	0011.0280	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts_OffsetDurinOscillatorOpening	0
+TC118M1_collaudo.adx	0011.0277	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts_SlowDownBeforeCut	0
+TC118M1_collaudo.adx	0011.0135	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.LoadInertia	0
+TC118M1_collaudo.adx	0011.0134	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.MotorCurrentArray_NegThresold	0
+TC118M1_collaudo.adx	0011.0133	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.MotorCurrentArray_PosThresold	0
+TC118M1_collaudo.adx	0011.0081	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.LoadInertia	0
+TC118M1_collaudo.adx	0011.0080	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.MotorCurrentArray_NegThresold	0
+TC118M1_collaudo.adx	0011.0079	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.MotorCurrentArray_PosThresold	0
+TC118M1_collaudo.adx	0011.0074	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.OffsetAfterHome	0
+
+
+1467
+
+
+[<NOT A:HMI_Config.HermosCameraOnMachine_OnBoxForming>Hermos Camera On Machine Trigger Phase (Box Elevator)][<A:HMI_Config.HermosCameraOnMachine_OnBoxForming>Hermos Camera On Machine Trigger Phase (1st Box Transfer)]
+
+
+
+[ < NOT A:HMI_Config.HotGlueOnBlank_4Guns> i need a python script for playing multiple mp3 file with this specs:
+ - QT6 graphical interface
+ - for every MP3 file loaded there should be an independant widget with play/stop/fadeIn/FadeOut button, one clckable seekbar with waveform of the file.
+ - each widget/file must have his own independant control like volume and status
+
+
+/home/luca/prg/FlutterSDK/flutter/bin
+
+echo 'export PATH="$HOME/prg/FlutterSDK/flutter/bin:$PATH"' >> ~/.bash_profile
+###########################################################
+Layout generato da chatgpt partendo dall'immagine:
+
+
+expense_scanner/
+├── lib/
+│   ├── main.dart
+│   ├── models/
+│   │   ├── expense.dart
+│   │   └── receipt.dart
+│   ├── services/
+│   │   ├── ocr_service.dart
+│   │   ├── database_service.dart
+│   │   └── category_service.dart
+│   ├── screens/
+│   │   ├── home_screen.dart
+│   │   ├── camera_screen.dart
+│   │   ├── expense_detail_screen.dart
+│   │   └── expenses_list_screen.dart
+│   └── widgets/
+│       ├── expense_card.dart
+│       └── category_picker.dart
+├── assets/
+│   └── images/
+└── pubspec.yaml
+
+
+can you change this OCR routine, and implement a state-of-the-art IA controls that analyze a receipt (supporting an international currency and languages), using google-mlkit to retrieve category and total prices, and the detection of the time and discriminates if it is breakfast, launch or dinner?
+
+
+
+
+final receiptData = await EnhancedOCRService.scanReceipt(imagePath);
+
+print('Merchant: ${receiptData.merchant}');
+print('Total: ${receiptData.totalAmount} ${receiptData.currency}');
+print('Category: ${receiptData.category}');
+print('Confidence: ${(receiptData.confidence * 100).toStringAsFixed(1)}%');
+print('Date: ${receiptData.date?.toString() ?? 'Not detected'}');
+
+// Access individual items
+for (final item in receiptData.items) {
+ print('Item: ${item.name} - ${item.price} ${receiptData.currency}');
+}
+
+// Convert to JSON for storage
+final json = receiptData.toJson();
+
+
+
+
+
+
+
+
+
+
+
+
+####################################################################################################
+gemini
+
+
+import 'package:image_picker/image_picker.dart';
+// ... inside your widget or service
+Future<void> processImage() async {
+  final picker = ImagePicker();
+  final XFile? image = await picker.pickImage(source: ImageSource.camera); // or .gallery
+
+  if (image != null) {
+    final receiptData = await OCRService.scanReceipt(image.path);
+    print('Amount: ${receiptData['amount']}');
+    print('Merchant: ${receiptData['merchant']}');
+    print('Category: ${receiptData['category']}');
+    print('Transaction Time: ${receiptData['transactionTime']}');
+    print('Meal Type: ${receiptData['mealType']}');
+    print('Items:');
+    for (String item in receiptData['items']) {
+      print('- $item');
+    }
+    print('Raw Text:\n${receiptData['rawText']}');
+  }
+}
+
+
+#############  Remember to dispose the text recognizer:
+
+@override
+void dispose() {
+  OCRService.dispose();
+  super.dispose();
+}
+
+
+
+
+
+using IronPython for Schneider PLC, can you write a script to find all the motors configured in the sercos tree and read TrackingDeviationLimit parameter of each motor, and show a popup if some of them is not 100?
+
+
+
+
+AttributeError: 'ScriptProject' object has no attribute 'device'
+
+Could not find a SERCOS Master device after a full tree search
+
+
+
+
+                --- SCRIPT: Starting find_sercos_master ---
+                [DEBUG] --- Inspecting 'proj' (projects.primary) variable ---
+                [DEBUG]   Type: <type 'ExtendedObject[IScriptProject]'>
+                [DEBUG]   --- Inspecting Children of 'proj' via .get_children() ---
+                [DEBUG]     Type of 'children' object: <type 'List[IExtendedObject[IScriptObject]]'>
+                [DEBUG]     Number of children found: 13
+                [DEBUG]       --- Details for Child #0 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #1 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #2 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #3 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #4 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #5 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #6 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #7 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #8 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #9 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #10 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #11 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]       --- Details for Child #12 ---
+                [DEBUG]         Wrapper Type: <type 'ExtendedObject[IScriptObject]'>
+                [DEBUG]         [ERROR] Could not inspect this child's real device. Reason: expected ITargetIdent, got Guid
+                [DEBUG]   --- End of Children Inspection ---
+                [DEBUG] --- End Inspection of 'proj' ---
+                [INFO] Starting recursive search from 'projects.primary' object.
+                [ERROR] Script finished searching, but no SERCOS Master device was found.
+
+
+
+
+
+
+
+Ricerca del componente SERCOS Master con nome: 'SERCOSIII'
+Trovato componente SERCOS Master: List[IExtendedObject[IScriptObject]]([<_3S.CoDeSys.ScriptEngine.ExtendedObject`1[[_3S.CoDeSys.ScriptEngine.BasicFunctionality.IScriptObject, ScriptEngine, Version=3.5.10.1, Culture=neutral, PublicKeyToken=null]] object at 0x000000000000002B [ScriptObject{IoMappingExtension, NoTestCaseObject, NoTestResourceObject, NoTestSeriesObject, NoTestSetObject, SvnScriptObjectExtender, DevicePropertiesExtension, CommunicationExtension, ConvertExtension, ChildDevicesExtension, CompareExtension, NoPouObject, NoParameterListObject, NoApplicationLoggerObject, ScriptDeviceObject, NoExplicitConnectorObject, NoSymbolConfigObject, NoLibManObject, ScriptNoProjectInfoMarker, NoScriptApplicationObject, ScriptNonTextualObject, NoTaskConfigObject, NoTaskObject, NoImagePoolObject}(Project=791, Name=SERCOSIII, guid=e6c55ee9-4524-45c3-aa0f-b25c9946f907)]>])
+Ricerca dei motori (tipo 'Lexium LXM62 Drive') sotto il componente SERCOS Master...
+Si o verificato un errore durante la ricerca: 'List[IExtendedObject[IScriptObject]]' object has no attribute 'find'
+
+
+
+usando come sorgente il file XML TC107M1.xml, per ogni istanza di <Input > che ha un campo Pagina="PnlAxesCurrents", e che contiene una qualsiasi delle seguenti stringhe nel campo datoPlc="":
+
+AxisCurrentLimit
+AxisCurrentLimitManual
+MotorCurrentArray_NegThresold
+MotorCurrentArray_PosThresold
+AxisFollowingErrorMaxValue
+
+indicizzata e identificata tramite il valore del suo campo Label="...", prendere i valori contenuti nei rispettivi campi "valore" e "valorescalato", ed inserirli nelle istanze corrispondenti nel file XML di destinazione TC118M1.xml
+
+
+
+
+
+ <Input datoPlc="A:PLC1.Application.TCPIP_Data.MD.Blank.MC4_IntCartonChain.AxisCurrentLimitManual" valore="25" valorescalato="25" commento="A:MD.Blank.MC4_IntCartonChain.AxisCurrentLimitManual" UnitaMisura="%" scalatura="1" Pagina="PnlAxesCurrents" Label="0006.0208" />
+ 
+ 
+
+ Pagina="PnlAxesCurrents"
+ Label="0006.0209"
+ 
+ <Input datoPlc="
+ 
+ 
+AxisCurrentLimit
+AxisCurrentLimitManual
+MotorCurrentArray_NegThresold
+MotorCurrentArray_PosThresold
+AxisFollowingErrorMaxValue
+
+
+
+ datoPlc="A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts.LoadInertia"
+ 
+     output = dest_path.lstrip('Application.TCPIP_Data.MD') + '_updated.adx'
+	 
+
+
+
+
+    if not results:
+        ttk.Label(win, text="Nessuna coppia valida trovata.", padding=20).pack(expand=True, fill="both")
+        return
+
+    columns = ("Nome", "Label Imax", "I Max", "Label Imin", "I Min", "Controllo")
+
+
+	# Mappa: chiave interna -> intestazione visibile
+	columns = {
+	    "nome": "Nome",
+	    "label_Imax": "Label Imax",
+	    "imax": "I Max",
+	    "label_Imin": "Label Imin",
+	    "imin": "I Min",
+	    "controllo": "Controllo"
+	}
+
+
+
+    # Frame contenitore per Treeview + Scrollbar
+    tree_frame = ttk.Frame(win)
+    tree_frame.pack(fill="both", expand=True)
+
+    vsb = ttk.Scrollbar(tree_frame, orient="vertical")
+    vsb.pack(side="right", fill="y")
+    
+    tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=vsb.set)
+    tree.pack(side="left", fill="both", expand=True)
+    vsb.config(command=tree.yview)
+
+#    for col in columns:
+#        tree.heading(col, text=col)
+#        tree.column(col, anchor="center")
+#
+#    tree.column("Nome", anchor="w", width=200, minwidth=220, stretch=True)
+#    tree.column("Label Imax", anchor="center", width=80, minwidth=80, stretch=False)
+#    tree.column("I Max", anchor="center",  width=60, minwidth=60, stretch=False)
+#    tree.column("Label Imin", anchor="center", width=80, minwidth=80, stretch=False)
+#    tree.column("I Min", anchor="center", width=60, minwidth=60, stretch=False)
+#    tree.column("Controllo", anchor="center", width=80, minwidth=80, stretch=False)
+
+    tree.pack(fill="both", expand=True)
+   .D.MC4_ExitPacketTwister_	W4_7082	15	W4_7092	10	Ok
+.D.MC4_BlankStackLifter_	W4_2039	40	W4_2139	25	Ok
+
+.D.MC4_LowBundleFolder_	W4_2017	100	W4_2117	40	⚠
+.D.MC4_InFrameReel1_	W4_7267	10	W4_7584	10	⚠
+.D.MC4_BundleGroupLifter_	W4_7687	100	W4_7688	100	☠
+.D.MC4_BlankStackLifter_	W4_2039	40	W4_2139	25	Ok
+
+
+
+def aggiungi_menu_contestuale(tree, parent_window):
+    def copy_selected_to_clipboard(event=None):
+        selected_items = tree.selection()
+        if not selected_items:
+            return
+        rows = []
+        for item in selected_items:
+            values = tree.item(item, "values")
+            rows.append("\t".join(values))
+        clipboard_text = "\n".join(rows)
+        parent_window.clipboard_clear()
+        parent_window.clipboard_append(clipboard_text)
+
+    menu = tk.Menu(parent_window, tearoff=0)
+    menu.add_command(label="Copia", command=copy_selected_to_clipboard)
+
+	def show_context_menu(event):
+		iid = tree.identify_row(event.y)
+		if iid:
+			# Se la riga cliccata non è già selezionata, selezionala
+			if iid not in tree.selection():
+				tree.selection_set(iid)
+			context_menu.post(event.x_root, event.y_root)
+
+    tree.bind("<Button-3>", show_context_menu)
+    tree.bind("<Control-c>", copy_selected_to_clipboard)
+
+
+
+
+def show_context_menu(event):
+    iid = tree.identify_row(event.y)
+    if iid:
+        # Se la riga cliccata non è già selezionata, selezionala
+        if iid not in tree.selection():
+            tree.selection_set(iid)
+        context_menu.post(event.x_root, event.y_root)
+
+def ordina_treeview(tree, colonna, inverso=False):
+    # Ottieni tutti gli elementi e i loro valori
+    dati = [(tree.set(k, colonna), k) for k in tree.get_children('')]
+
+    # Ordina alfabeticamente (o numericamente se serve)
+    dati.sort(reverse=inverso)
+
+    # Riordina gli elementi nella treeview
+    for index, (valore, k) in enumerate(dati):
+        tree.move(k, '', index)
+
+    # Inverti l'ordine al prossimo click
+    tree.heading(colonna, command=lambda: ordina_treeview(tree, colonna, not inverso))
+
+
+
+
+
+
+tree.heading("NomeColonna", text="NomeColonna", command=lambda: ordina_treeview(tree, "NomeColonna"))
+
+
+
+vorrei aggiungere un pulsante che chiama una funzione. questa funzione dovrebbe chiedere l'inserimento di un parametro che poi andra cercato all'interno di una lista di file xml selezionati
+
+
+def cerca_parametro_xml():
+    file_paths = filedialog.askopenfilename(title="Seleziona ricetta da controllare",
+                                           filetypes=[("ADX", "*.adx")])
+    if not file_paths:
+        return
+
+    parametro = tk.simpledialog.askstring("Parametro", "Inserisci il parametro da cercare:")
+    if not parametro:
+        return
+
+    risultati = []
+
+    for path in file_paths:
+        try:
+            tree = ET.parse(path)
+            root = tree.getroot()
+            for inp in root.findall("Input"):
+                dato = inp.get("datoPlc", "")
+                label = inp.get("Label", "")
+                valore = inp.get("valore", "")
+
+                if parametro in dato:
+                    risultati.append((os.path.basename(path), "datoPlc", dato, valore))
+                elif parametro in label:
+                    risultati.append((os.path.basename(path), "Label", label, valore))
+        except ET.ParseError:
+            messagebox.showwarning("Errore", f"Errore nel parsing di {os.path.basename(path)}")
+
+    # Mostra i risultati in una finestra con tabella
+    win = tk.Toplevel(rootWin)
+    win.title("Risultati ricerca parametro")
+    win.geometry("750x400")
+
+    if not risultati:
+        ttk.Label(win, text="Parametro non trovato in nessun file.", padding=20).pack(expand=True, fill="both")
+        return
+
+    columns = ("file", "campo", "valore_cercato", "valore")
+    tree = ttk.Treeview(win, columns=columns, show="headings")
+    tree.heading("file", text="File")
+    tree.heading("campo", text="Campo")
+    tree.heading("valore_cercato", text="Contenuto campo")
+    tree.heading("valore", text="Valore")
+
+    tree.column("file", width=200, anchor="w")
+    tree.column("campo", width=80, anchor="center")
+    tree.column("valore_cercato", width=250, anchor="center")
+    tree.column("valore", width=100, anchor="center")
+
+    for file, campo, contenuto, valore in risultati:
+        tree.insert("", "end", values=(file, campo, contenuto, valore))
+
+    tree.pack(expand=True, fill="both")
+
+    vsb = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+
+
+
+-R008402 +0001/0084.7 RESISTENZA SALDATORE ESTERNO 3
+3 EXTERNAL WELDER RESISTOR
+
+300W MECH.SPARE PARTS TW1F033 1
+CAT
+
+
+
+btn_search_param = ttk.Button(frm, text="Cerca parametro nei file XML", command=cerca_parametro_xml)
+btn_search_param.pack(fill="x", padx=15, pady=5)
+
+
+
+228001
+
+
+
+
+TC107M1.adx	0009.0178	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisCurrentLimitManual	10
+TC107M1.adx	0009.0182	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0009.0190	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_NegThresold	0
+TC107M1.adx	0009.0193	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_PosThresold	0
+TC107M1.adx	0011.5053	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AutoCurrentCheckEnable	True
+TC107M1.adx	0011.0075	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisCurrentLimit	12
+TC107M1.adx	0011.0078	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0011.5107	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.AutoCurrentCheckEnable	True
+
+TC107M1.adx	0009.0182	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.AxisFollowingErrorMaxValue	2
+TC107M1.adx	0009.0193	A:PLC1.Application.TCPIP_Data.MD.BoxAdvancement.MC4_FilmFormer.MotorCurrentArray_PosThresold	0
+TC107M1.adx	0011.0078	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.AxisFollowingErrorMaxValue	2
+
+
+TC118M1_collaudo.adx	0011.0280	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts_OffsetDurinOscillatorOpening	0
+TC118M1_collaudo.adx	0011.0277	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmBelts_SlowDownBeforeCut	0
+TC118M1_collaudo.adx	0011.0135	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.LoadInertia	0
+TC118M1_collaudo.adx	0011.0134	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.MotorCurrentArray_NegThresold	0
+TC118M1_collaudo.adx	0011.0133	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmKnife.MotorCurrentArray_PosThresold	0
+TC118M1_collaudo.adx	0011.0081	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.LoadInertia	0
+TC118M1_collaudo.adx	0011.0080	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.MotorCurrentArray_NegThresold	0
+TC118M1_collaudo.adx	0011.0079	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.MotorCurrentArray_PosThresold	0
+TC118M1_collaudo.adx	0011.0074	A:PLC1.Application.TCPIP_Data.MD.KnifeFilm.MC4_FilmUnwinder.OffsetAfterHome	0
+
+
+1467
+
+
+[<NOT A:HMI_Config.HermosCameraOnMachine_OnBoxForming>Hermos Camera On Machine Trigger Phase (Box Elevator)][<A:HMI_Config.HermosCameraOnMachine_OnBoxForming>Hermos Camera On Machine Trigger Phase (1st Box Transfer)]
+
+
+
+[<NOT A:HMI_Config.HotGlueOnBlank_4Guns>Purge Hot glue Lateral Internal (Q059601)][<A:HMI_Config.HotGlueOnBlank_4Guns>Purge Hot glue Lateral Internal (Q059201)]
+
+
+[<NOT A:HMI_Config.HotGlueOnBlank_4Guns>Purge Hot glue Lateral External (Q059602)][<A:HMI_Config.HotGlueOnBlank_4Guns>Purge Hot glue Lateral External (Q059202)]
+
+
+
+Purge Hot glue Lateral Internal (Q059601)
+Purge Hot glue Lateral External (Q059602)
+
+
+
+Purge Hot glue Lateral Internal (Q059601)
+Purge Hot glue Lateral Internal (Q059601)
+
+
+
+SWC_SampleTimeFix
+
+	SWC_FilmBelts_MovementCompensationAtUnwindStart:		BOOL:=TRUE;	//250618 VenturiniF/ConsalviL: Applico un movimento in mm nella direzione di svolgitura con FilmBelts tramite un Yoffset all'avvio della svolgitura. Si vuole compensare la non tensione della cinghia aspirata nella posizione di belts oscillator chiusa: prima che le cinghie portino via la quantità di film per la svolgitura devono recuperare la non tensione che si ha dal lato del film.
+
+
+
+
+DESCRIZIONE 
+FUNZIONAMENTO:	
+TS STAMPER + TC 2 Side Flaps
+TS STAMPER + TC 2 Side Flaps + TC Long Flaps
+TS STAMPER	
+All Off
+
+
+DESCRIZIONE 
+FUNZIONAMENTO:	
+STAMPER NORMALE + 2 TUBI TC	
+STAMPER NORMALE + 2 TC + PATTA LUNGA TC	
+STAMPER NORMALE	
+TUTTO SPENTO
+
+
+
+-T040402 6032191  PHOENIX QUINT-PS/3AC/24DC/40
+
+ALIM.SWITCH
+
+F040401	--	K080003 E53.0
+F040401	--	K080003 E53.0
+
+F040501	--	K080004 E54.0
+
+
+
+MODULO 4 USCITE ANALOGICHE 6822999 
+
+BECKHOFF KL4034
+
+MOD. 4OUT ANALOG
+
+378002
+
+
+
+chiedere x allarme di sovratemperatura del vacuumBox
+
+
+
+
+velocita ventole
+
+p016  da 30min a 4ore (480min)
+T_CabinetFansStopDelay
+MD.Shared.T_CabinetFansStopDelay  0000.0094
+T_CabinetFansStopDelay 0000.0162  
+
+
+Modifiche mancanti da importare nella TC165L1:
+	HWC_NoFilmFolderWithGlueReject:							BOOL:=TRUE; 
+	//250506 VenturiniF: inibisce l'erogazione del film (KnifeFilm2), dei piegatori laterali (LatFilmFolder (int ed ext) del LongSideWelder, del LowerFilmFolder e del RearBoxcontrast se il box è uno scarto per colla secca.
+
+
+Tag da guardare:
+HWC_NoFilmFolderWithGlueReject
+SWC_BlankReverse_Group_Fix
+
+
+L_KnifeFilm2_NoStartForDryGlue
+		//HWC_BlankReverse_Group
+NoFilmFolderWithGlueReject
+NoFilmFolderWithGlueReject
+
+
+MC4_IntLatFilmWelder
+MC4_ExtLatFilmWelder
+
+
+HWC_FastFormatChange_AddedBeltsOscillator :	BOOL; // 0000.5493: 
+
+
+
+
+regolare teartape tw T326001 keyence - vedere ds
+
+lun 7 		8-18:30
+mar 8 		8-17
+mercoledi 9	 8-17
+giovedi 10	 8-18:30
+venerdi 11	 8-17
+
+
+L_FanCabinet1_OUT_Slow:=15; // 5;
+L_FanCabinet2_OUT_Slow:=15; // 5;
+L_FanCabinet3_OUT_Slow:=15; // 10;
+L_FanCabinet1_OUT_Mid:= 15; // 10;
+L_FanCabinet4_OUT_Slow:=15; // 10;
+
+
+tw
+ventole 
+min in 65
+	out 30
+
+mid in 75
+	out 40
+
+
+th
+min/mid in 100
+		out 30
+		
+		
+//new slow value
+L_FanCabinet1_IN_Slow:=100;
+L_FanCabinet1_OUT_Slow:=30;
+L_FanCabinet2_IN_Slow:=100;
+L_FanCabinet2_OUT_Slow:=30;
+L_FanCabinet3_OUT_Slow:=30;
+L_FanCabinet3_IN_Slow:=100;
+L_FanCabinet3_OUT_Slow:=30;
+
+//new mid value
+L_FanCabinet1_IN_Mid:= 100;
+L_FanCabinet1_OUT_Mid:= 30;
+L_FanCabinet2_IN_Mid:=100;
+L_FanCabinet2_OUT_Mid:=30;
+L_FanCabinet3_OUT_Mid:=30;
+
+//new fast value				 
+L_FanCabinet3_OUT_Fast:=70;	
+L_FanCabinet4_IN_Slow:=100;
+L_FanCabinet4_IN_Mid:=100;
+L_FanCabinet4_IN_Fast:=100;
+L_FanCabinet4_OUT_Slow:=30;
+L_FanCabinet4_OUT_Mid:=30;
+L_FanCabinet4_OUT_Fast:=70;
+
+
+
+
+
+
+
+
+
+
+
+// Nuovi Valori testati in ImaTT  -- Da aggiornare
+
+//new slow value
+L_FanCabinet1_IN_Slow:=100;
+L_FanCabinet1_OUT_Slow:=20;
+L_FanCabinet2_IN_Slow:=100;
+L_FanCabinet2_OUT_Slow:=20;
+L_FanCabinet3_OUT_Slow:=30;
+L_FanCabinet3_IN_Slow:=100;
+L_FanCabinet3_OUT_Slow:=30;
+
+//new mid value
+L_FanCabinet1_IN_Mid:= 100;
+L_FanCabinet1_OUT_Mid:= 30;
+L_FanCabinet2_IN_Mid:=100;
+L_FanCabinet2_OUT_Mid:=40;
+L_FanCabinet3_OUT_Mid:=50;
+
+//new fast value				 
+L_FanCabinet3_OUT_Fast:=70;	
+L_FanCabinet4_IN_Slow:=100;
+L_FanCabinet4_IN_Mid:=100;
+L_FanCabinet4_IN_Fast:=100;
+L_FanCabinet4_OUT_Slow:=30;
+L_FanCabinet4_OUT_Mid:=30;
+L_FanCabinet4_OUT_Fast:=70;
+
+
+
+
+
+TCP_3to0_P005401_MarkerLaserReady:=PBIX_P005401_MarkerLaserReady;
+TCP_3to0_P005401_MarkerLaserBusy:=PBIX_P005401_MarkerLaserBusy;
+TCP_3to0_P005401_MarkerLaserDataCompiled:=PBIX_P005401_MarkerLaserDataCompiled OR HWC_Videojet;
+IF HWC_Marker2Laser THEN
+	TCP_3to0_Marker2LaserReady:=PBIX_P005501_Marker2LaserReady;
+	TCP_3to0_Marker2LaserBusy:=PBIX_P005501_Marker2LaserBusy;
+	TCP_3to0_Marker2LaserDataCompiled:=PBIX_P005501_Marker2LaserDataCompiled OR HWC_Videojet;	
+END_IF
+
+
+PBIX_P005401_MarkerLaserReady			E3362.5	K081802
+PBIX_P005401_MarkerLaserBusy			E3362.6	K081802
+PBIX_P005401_MarkerLaserDataCompiled	E3362.7	K081802
+
+
+
+MCV_ExitBeltLifter.RefPosition
+MD.D.MarkerLaser_MarkPhase
+L_MarkerLaser_Cam
+
+K005401_LaserStart.Value
+
+
+PbOnOff_MarkerLaser
+
+
+LMC_PacDrive.Application.Global_HWC.HWC_MarkerInkJet_OnBoxForming
+
+B286001 int
+B286002 ext
+
+
+G_TWExit_Interface.Shift[L1_3_RejectEfficiencyCheck_Cam.Q_ShiftIndex].Rejected OR G_TWExit_Interface.Shift[L1_3_RejectEfficiencyCheck_Cam.Q_ShiftIndex].Reject)
+
+
+barbieri
+
+
+
+
+chiamare cavarretta per capire come installarlo
+stanno guardando per il collegamento elettrico
+
+controllare ppm dell enc sw
+
+SWC_MarkerLaser_PrintOnlyGoodPackets
+
+
+HWC_Videojet
+
+
+
+LMC_PacDrive.Application.Config.BoxAdvancementConfig.BoxElevatorY_IncEncOut_Resolution
+HWC_BoxElevator_mmToEncoder
+
+HWC_MarkerInkJet_OnBoxForming
+
+
+
+
+
+
+
+Da aggiungere/verificare:
+SWC_FanTempSet
+G2_FanTempSetAxisIndex
+
+
+
+	HWC_FanAdjustment_Set3:								BOOL:=TRUE;//250716 RoversiA: su richiesta di Iuri inserito nuovo set valori velocità ventole	
+	
+	launcher_main
+	boxforming_main
+	boxadvancement
+	
+	
+	
+	BoxFilmLowerWelder_Main non presente????
+	
+	
+	
+	
+	-T044103 +0001/0441.6 ALIMENTAZIONE 24VDC LOGICA
+LOGIC 24VDC POWER SUPPLY
+
+ALIMENTAZIONE 24VDC LOGICA 320-575 Vac 18-29,5 Vdc 20 A 6032127 TH1Q070 1
+LOGIC 24VDC POWER SUPPLY
+
+PHOENIX QUINT-PS/3AC/24DC/20
+
+ALIM.SW
+
+
+E058803
+
+
+
+
+
+
+TC
+HWC_NoFilmFolderWithGlueReject: BOOL:=TRUE; //250506 VenturiniF: inibisce l'erogazione del film (KnifeFilm2), dei piegatori laterali (LatFilmFolder (int ed ext) del LongSideWelder, del LowerFilmFolder e del RearBoxcontrast se il box è uno scarto per colla secca.
+
+SWC_BlankReverse_Group_Fix: BOOL := TRUE; //241127 VenturiniF/SalomoniD: fix su start knifefilm2 
+
+
+TC
+Abilitata HWC_MarkerInkJet_OnBoxForming per abilitare il supporto al marcatore inkjet.
+	HWC_MarkerInkJet_OnBoxForming: BOOL:=TRUE;		//230111 VenturiniF: gestione marcatore inkjet su Box Forming. Comprende sia controllo fotocellula per presenza box che gestione comandi per marcatore	
+
+
+
+TC/TW
+Importato 
+	HWC_FanAdjustment_Set3: BOOL:=TRUE;//250716 RoversiA: su richiesta di Iuri inserito nuovo set valori velocità ventole
+
+ //SWC_FanTempSet: BOOL:=TRUE;//250717 RoversiA: Attivazione ventole di raffreddamento drive a 10°C 
+
+
+HWC_FanAdjustment_Fix3: BOOL:=FALSE;//250714 RubiniA/ConsalviL: A seguito di alcuni problemi all'interno dei quadri modifichiamo alcuni parametri delle ventole                      
+HWC_FanAdjustment_Fix4: BOOL:=TRUE;//250715 RubiniA/ConsalviL: Ventole che vanno ancora più forte in out (a scapito del riumore)
+
+
+
+X37E
+
+
+F002501
+F002502
+F002503
+
+
+E50.6 E50.2
+063903
+
+T022201
+
+%systemroot%\system32\imageres.dll
+%systemroot%\system32\shell32.dll
+%systemroot%\system32\ddores.dll
+%systemroot%\system32\pifmgr.dll
+%systemroot%\explorer.exe
+%systemroot%\system32\accessibilitycpl.dll
+%systemroot%\system32\moricons.dll
+%systemroot%\system32\mmcndmgr.dll
+%systemroot%\system32\mmres.dll
+%systemroot%\system32\netcenter.dll
+%systemroot%\system32\netshell.dll
+%systemroot%\system32\networkexplorer.dll
+%systemroot%\system32\pnidui.dll
+%systemroot%\system32\sensorscpl.dll
+%systemroot%\system32\setupapi.dll
+%systemroot%\system32\wmploc.dll
+%systemroot%\system32\wpdshext.dll
+%systemroot%\system32\compstui.dll
+%systemroot%\system32\ieframe.dll
+%systemroot%\system32\dmdskres.dll
+%systemroot%\system32\dsuiext.dll
+%systemroot%\system32\mstscax.dll
+%systemroot%\system32\wiashext.dll
+%systemroot%\system32\comres.dll
+%systemroot%\system32\mstsc.exe
+%systemroot%\system32\actioncentercpl.dll
+%systemroot%\system32\aclui.dll
+%systemroot%\system32\autoplay.dll
+%systemroot%\system32\comctl32.dll
+%systemroot%\system32\filemgmt.dll
+%systemroot%\system32\mssvp.dll
+%systemroot%\system32\ncpa.cpl
+%systemroot%\system32\url.dll
+%systemroot%\system32\xwizards.dll
+%systemroot%\notepad.exe
+%systemroot%\regedit.exe
+%systemroot%\system32\calc.exe
+%systemroot%\system32\cleanmgr.exe
+%systemroot%\system32\cmd.exe
+%systemroot%\system32\control.exe
+%systemroot%\system32\fsquirt.exe
+%systemroot%\system32\msconfig.exe
+%systemroot%\system32\taskmgr.exe
+%systemroot%\system32\wscript.exe
+
+
+puoi disegnare un icona per windows, per una cartella contenente i documenti relativi alle trasferte di lavoro in ambito tech? mi piacerebbe che il simbolo della cartella non fosse la cosa principale, e che contenesse il mondo, un aereo e qualcosa collegato al settore tech/it/automation
+
+
+
+-T018001 +0001/0180.0 AZIONAMENTO MOTORE A= PRE-SNERVATORE FUSTELLA ASSE B= TAMPONATORE FUSTELLA
+MOTOR ACTUATION A= BLANK PRE FOLDER B= BLANK BUMPER
+
+AZIONAMENTO MOTORE A= PRE-SNERVATORE FUSTELLA ASSE B= TAMPONATORE FUSTELLA 400 Vac 27 A 6042931 TH1Q070002 1 
+MOTOR ACTUATION A= BLANK PRE FOLDER B= BLANK BUMPER
+AZIONAMENTO MOTORE SCHNEIDER LXM62DD27D21000
+
+AZION.X BRUSH
+
+
+
+-F002001 +0001/0020.2 PROTEZIONE 400Vac PAC-DRIVE 3 RACK 2 
+PROTECTION 400Vac PAC-DRIVE 3 RACK 2
+
+PROTEZIONE 400Vac PAC-DRIVE 3 RACK 2 28-36A 28A 6505703 TH1Q070012 1
+PROTECTION 400Vac PAC-DRIVE 3 RACK 2
+
+PROTEZIONE SIEMENS 3RV2032-4PA10 28-36A
+
+INT.AUT.3
+
+
+Min Max Jload
+
+
+
+  <Input datoPlc="A:PLC1.Application.TCPIP_Data.MD.D.MC4_StiffUnwinder_AxisFollowingErrorMaxValue" valore="3" valorescalato="3" commento="A:D.MC4_StiffUnwinder_AxisFollowingErrorMaxValue" UnitaMisura="°" scalatura="1" Pagina="PnlAxesCurrents" Label="W4_2293" />
+  
+  <Input datoPlc="A:PLC1.Application.TCPIP_Data.MD.D.MC4_StiffUnwinder_LoadInertia" valore="1" valorescalato="1" commento="A:D.MC4_StiffUnwinder_LoadInertia" UnitaMisura="g*cm2" scalatura="1" Pagina="PnlAxesPos" Label="W4_7350" />
+  
+  <Input datoPlc="A:PLC1.Application.TCPIP_Data.MD.D.MC4_StiffUnwinder_PlcJLoad" valore="10" valorescalato="10" commento="A:D.MC4_StiffUnwinder_PlcJLoad" UnitaMisura="Kg*cm2" scalatura="1" Pagina="PnlAxesPos" Label="W4_1490" />
+  
+  
+  
+  datalog_application.h trovi queste righe:
+#define ACCELERO_ODR     100.0f
+#define GYRO_ODR         104.0f
+#define MAGNETO_ODR      100.0f
+#define PRESSURE_ODR     50.0f
+#define TEMPERATURE_ODR  12.5f
+#define HUMIDITY_ODR     12.5f
+#define DATA_PERIOD_MS   (10)
+
+#define SAMPLING_50Hz 
+//#define SAMPLING_100Hz 
+
+#if defined( SAMPLING_50Hz)
+  #define DEFAULT_uhCCR1_Val 190
+  #define ACCELERO_ODR 416.0f     /* after filtering will be 46.2 Hz */
+  #define ACCELERO_DIV LSM6DSM_ACC_GYRO_HPCF_XL_DIV9
+  #define GYRO_ODR 52.0f
+  #define MAGNETO_ODR 50.0f
+  #define PRESSURE_ODR 50.0f
+  #define DATA_PERIOD_MS     (20)
+
+#elif defined( SAMPLING_100Hz)
+  #define DEFAULT_uhCCR1_Val 100
+  #define ACCELERO_ODR  833.0f    /* after filtering will be 93 Hz */
+  #define ACCELERO_DIV LSM6DSM_ACC_GYRO_HPCF_XL_DIV9
+  #define GYRO_ODR 104.0f
+  #define MAGNETO_ODR 100.0f
+  #define PRESSURE_ODR 50.0f
+  #define DATA_PERIOD_MS     (10)
+#endif
+
+
+ B-U585I-IOT02A
+ eLooM_Components
+ NUCLEO-H7A3ZI-Q
+ NUCLEO-U575ZI-Q
+ STM32H7B3RI-AFCI1
+ STM32L4R9ZI-STWIN
+ STM32U585AI-SensorTile.boxPro
+ STM32U585AI-STWIN.box
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Description	Resource	Path	Location	Type
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-closer.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-fstatr.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-isattyr.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-lseekr.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-readr.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-signalr.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard\libc_nano.a(libc_a-writer.o): note: the message above does not take linker garbage collection into account	STSW-STLKT01-DataLog		 	C/C++ Problem
+
+
+
+
+
+
+
+
+
+lsm6dsm_settings.h:.
+#define LSM6DSM_ACC_ODR 52.0f /* ODR = 52Hz */
+#define LSM6DSM_ACC_FS 2 /* FS = 2g */
+#define LSM6DSM_GYRO_ODR 52.0f /* ODR = 52Hz */
+#define LSM6DSM_GYRO_FS 2000 /* FS = 2000dps */
+
+datalog_application.c:
+void MX_DataLogTerminal_Init(void)
+{
+  BSP_MOTION_SENSOR_Init(LSM303AGR_MAG_0, MOTION_MAGNETO);
+  BSP_MOTION_SENSOR_SetOutputDataRate(LSM303AGR_MAG_0, MOTION_MAGNETO, LSM303AGR_MAG_ODR);
+  BSP_MOTION_SENSOR_SetFullScale(LSM303AGR_MAG_0, MOTION_MAGNETO, LSM303AGR_MAG_FS);
+  
+  BSP_MOTION_SENSOR_Init(LSM6DSM_0, MOTION_ACCELERO | MOTION_GYRO);
+  BSP_MOTION_SENSOR_SetOutputDataRate(LSM6DSM_0, MOTION_ACCELERO, LSM6DSM_ACC_ODR);
+  BSP_MOTION_SENSOR_SetFullScale(LSM6DSM_0, MOTION_ACCELERO, LSM6DSM_ACC_FS);
+  BSP_MOTION_SENSOR_SetOutputDataRate(LSM6DSM_0, MOTION_GYRO, LSM6DSM_GYRO_ODR);
+  BSP_MOTION_SENSOR_SetFullScale(LSM6DSM_0, MOTION_GYRO, LSM6DSM_GYRO_FS);
+
+
+24: 8:00-12:30  13:30-18:15
+25: 8:00-12:30  13:30-19:15
+
+
+crea una icona per rappresentare un programma di gestione delle configurazioni di una macchina automatica, il 
+l'icona dovrebbe contenere un simbolo di un foglio scritto, qualcosa che richiami l'automazione, un piccolo ingranaggio e uno stile moderno.
+Il file deve essere in formato .ico
+
+Perfetto! Sto creando un'icona che rappresenta un programma di gestione delle configurazioni per una macchina automatica, con un foglio scritto, un piccolo ingranaggio e uno stile moderno. Appena pronta, ti aiuterò a convertirla in formato .ico.
+
+
+
+#################                HWC ed SWC d importare su PLC0:           ##################.
+.
+HWC_McvMasterAccDecReducedSealMachine: BOOL:=TRUE; (plc0)	29/07/25	PalermoM: Su richiesta di Negrini e Cavarretta (TH107H0 Bmj n°1) ho abbassato l'acc e dec del master macchina per ridurre o azzerare gli scarti per posizione etichetta/foglio alluminio fuori posto durante la rampa di partenza. Con la macchina ferma da un pò si pensa che l'alluminio prenda pieghe che disturbano l'imbutitura.
+
+HWC_MoveRejectOnFW1ToFW2: BOOL:=TRUE; (plc0)	12/05/25	FalascaM: alcuni scarti non vengono scartrati in ruota 1 ma portati in uscita.
+
+HWC_EmptyHopperRejectionBinBuzzerEnable: BOOL:=TRUE; (plc0)	13/05/25	PalermoM: Come da richiesta di Negrini faccio suonare il buzzer quando è ora di svuotare il cassetto scarti di ruota hopper.
+
+SWC_HopperShaker_StopReqFix: BOOL:=TRUE; (plc0)	28/05/25	SalomoniD/PalermoM: Richiesta di stop agitatori ogni qual volta si fermi lo spingitore associato.
+
+
+
+SWC_HopperRejectionBinNotInPosition_Buzzer: BOOL:=TRUE; (plc0/plc1)     //250604 LinguerriM: PlC0 e PLC1. Warning rosso a pannello più buzzer non spegnibile se il bidone degli scarti è aperto. Sulle ermetiche accumuliamo lo sfrido stiffener ogni ciclo indipendentemente dallo scarto in HopperWheel, l'allarme G1_2_Alarm_1949 non può aspettare un numero di scarti effettuati da HWReject per salire.
+
+SWC_SpeedLowStiffFix: BOOL:=TRUE; (Plc0/Plc1/Plc3)  //250604 LinguerriM: PlC0/PLC1/PLC3. Se avveniva una giunta stiffener durante lo svuotamento macchina, il mandrino erogava troppa carta a causa del secondo di L_DancerFillingBroken_TOF perche la variabile L_SpeedLow non interveniva. Al PLC3 serve sapere la velocità del gruppo carta, LEV_StiffPreUnwind non va bene perchè equivale a quella del Master.
+
+
+SWC_BundleWDoubleMotor_SingleHomeAxisLost: BOOL:=TRUE;  (plc0)  //250604 LinguerriM: Ripristino il bit che scatenerebbe "Home axis lost. Execute home general procedure" anche se il posizionamento del SingleHome non andrà a buon fine. Se si eseguisse un GeneralHome come suggerito da allarme ci sarebbe comunque il ripristino del bit senza provare a posizionare l'asse.
+
+
+
+SWC_BundleWTakerDoubleMotor_SingleHome: BOOL:=TRUE; (plc0)  //250604 LinguerriM: Posizionamento combinato del doppio motore durante il SingleHome.
+
+SWC_BundleWPusherDoubleMotor_SingleHome: BOOL:=TRUE;  (plc0) //250604 LinguerriM: Posizionamento combinato del doppio motore durante il SingleHome.
+
+SWC_BundleWTakerDoubleMotor_SingleHome_Fix1: BOOL:=TRUE;  (plc0)  //250604 LinguerriM: Aggiunta condizione utile al SingleHome.
+
+SWC_TargetPosDistanceToNoInterference_StiffClampPutAxisPeriode: BOOL:=TRUE; (plc0)  //250618 LinguerriM: Corretto errore di copia/incolla che non faceva rifasare. C'era MC4_StiffClampGet_AxisPeriode al posto di MC4_StiffClampPut_AxisPeriode
+
+
+
+#################                HWC ed SWC d importare su PLC1:           ##################
+.
+
+SWC_HopperBinRejectCountingProportional  (plc1)	19/05/25	PalermoM: Su richiesta di Negrini ho cambiato la soglia da 1200 a 1100 per non fa andare gli sfridi dello stiffener sotto al nastrino che si blocca. In più ho aggiunto 10 al contatore ogni volta che parte il motore dello scarto di hopper wheel per avere un conteggio proporzionale al volume di materiale che entra nel bidoncino.
+
+
+SWC_SpeedLowStiffFix:   BOOL:=TRUE;//250604 LinguerriM: PlC0/PLC1/PLC3. Se avveniva una giunta stiffener durante lo svuotamento macchina, il mandrino erogava troppa carta a causa del secondo di L_DancerFillingBroken_TOF perche la variabile L_SpeedLow non interveniva. Al PLC3 serve sapere la velocità del gruppo carta, LEV_StiffPreUnwind non va bene perchè equivale a quella del Master.
+
+
+SWC_HopperRejectionBinNotInPosition_Buzzer: BOOL:=TRUE;//250604 LinguerriM: PlC0 e PLC1. Warning rosso a pannello più buzzer non spegnibile se il bidone degli scarti è aperto. Sulle ermetiche accumuliamo lo sfrido stiffener ogni ciclo indipendentemente dallo scarto in HopperWheel, l'allarme G1_2_Alarm_1949 non può aspettare un numero di scarti effettuati da HWReject per salire.
+
+
+
+
+#################                HWC ed SWC d importare su PLC2:           ##################
+.
+
+SWC_FlapHotGluePurge_Fix2 (plc2)	14/04/25	//250320 LinguerriM: tolta memoria abilitazione tasto spurgo colla FlapHotGlue. Se spurgando cadeva L_CmdConditionOk(apertura porta), al reset(chiusura porta) lo spurgo ricominciava da solo senza una nuova richiesta manuale.
+
+
+SWC_VacuumAnalogSensorNoValves (plc2)	23/04/25	PalermoM: Questa modifica consente di poter leggere il valore del vuoto in ingresso al collettore vacuum anche senza la presenza delle valvole FESTO poichè la gestione della lettura delle analogiche era congelata dentro alla routine che gestisce le proporzionali. Nelle macchine povere tipo BMJ non ci sono queste valvole.
+
+
+
+SWC_VinilicGlue_NoParkReqDuringRephasing  (plc2)	15/05/25	LinguerriM: Durante il rifasamento disabilito le richieste di parcheggio, altrimenti il VinilcGroup dopo essersi portato in Run tornava in Park per poi ritornare in Run. Questo balletto comportava che spesso la macchina partisse prima che il VinilcGroup fosse InWorkPos facendo passare dei blank senza colla.
+
+
+SWC_BundleWDoubleMotor_2ndChanceFix: (plc2)   BOOL:=TRUE;//250604 LinguerriM: La _2ndChance non partiva perchè non resettavamo gli allarmi
+
+
+Abilitate:.
+HWC_InterferenceBlankBumperFlapHotGlueGun: BOOL:=TRUE;	//210924 FantoniM: inserito controllo movimento braccio pistole colla caldo zona blank. Se Blank Bumper in interferenza con il movimento delle pistole, inibisco il movimento manuale in posizione di lavoro e chiedo un movimento manuale del bumper fuori area //220218 Patrizia: Importato da TH183F0.
+
+
+HWC_FormatChangeManagment:										BOOL:=FALSE;		//210520 Falasca/Linguerri: abilita la gestione dei cambi formati via software
+
+
+#################                HWC ed SWC d importare su PLC3           ##################
+
+
+HWC_InFrameReelBrakeActiveWithOpenCarter (plc3)	28/05/25	VictorA: tolgo la coppia al motore solo se viene premuta l'emergenza e/o inserito il torque off, di conseguenza per togliere lo start uso lo stesso contatto di sicurezza che abilita il motore (STO), in questo modo evito di togliere la coppia appena viene aperto un carter.
+
+
+
+SWC_SpeedLowStiffFix:   BOOL:=TRUE;//250604 LinguerriM: PlC0/PLC1/PLC3. Se avveniva una giunta stiffener durante lo svuotamento macchina, il mandrino erogava troppa carta a causa del secondo di L_DancerFillingBroken_TOF perche la variabile L_SpeedLow non interveniva. Al PLC3 serve sapere la velocità del gruppo carta, LEV_StiffPreUnwind non va bene perchè equivale a quella del Master.
+
+
+
+HWC_StiffenerOnInFrame
+
+
+Abilitate:.
+   
+HWC_Videojet: BOOL:=TRUE;	//231006 Diegolis: tolgo i segnali "DataCompiled" non presenti nel Videojet.   //240819 FalascaM: importato da TH1xxxx_plc3_ip21_u58.
+        
+
+
+sel(SWC_BundleWTakerDoubleMotor_SingleHome, L_MC4_BundleWheel_NoInterf_MC4_BundleWTaker_Margin, G1_4_MC4_BundleWheel_NoInterf_MC4_BundleWTaker_Margin), (*SWC_BundleWTakerDoubleMotor_SingleHome*)
+
+
+
+da verificare, presenti nella 107 e non nella 127:
+	StopMaster_Running:	BIT;	//8.1	//SWC_StopMaster_Running		
+	G4_PowerNotOK:	BIT;	//8.2	//HWC_DisasterRecoveryCheck		
+
+HWC_HotGlueTankReady_Filter
+
+	HWC_HotGlueTankReady_Filter:								BOOL:=FALSE;//250611 LinguerriM: Temporaneo, durante il SAT ci cade ilo filo PBIX_E005801_HotGlueTankReady per circa 2 secondi
+
+
+
+\\IMA5SP24\Ima-Industries\GimaTT\GimaTT UTE\Riservata_Ute\UteNew\VARIE\Varie-TH\Doc\Script\_2Alarms e S1_0_15AlarmReactionList
+
+\\IMA5SP24\Ima-Industries\GimaTT\GimaTT UTE\Riservata_Ute\UteNew\VARIE\Varie-TH\Doc\Script\_2Alarms e S1_0_15AlarmReactionList
+
+HWC_NoFilmFolderWithGlueReject
+HWC_NoFilmFolderWithGlueReject
+
+
+394004
+
+
+
+
+
+Alternative a IrfanView Portable (per immagini)
+1. XnView Classic Portable
+Versione leggera e portatile di XnView.
+Supporta compressione batch, conversione e ridimensionamento.
+Scaricabile come ZIP da xnview.com.
+2. FastStone Image Viewer Portable
+Interfaccia intuitiva, supporta compressione e modifica immagini.
+Disponibile in versione ZIP (portable) da faststone.org.
+3. JPEGView
+Visualizzatore e compressore JPEG molto leggero.
+Nessuna installazione richiesta, basta estrarre e avviare.
+Ottimo per modifiche rapide e salvataggio con compressione.
+🎥 Alternative a VLC Portable (per video)
+1. HandBrake Portable
+Potente convertitore video open source.
+Supporta compressione automatica con profili predefiniti.
+Versione portatile disponibile su portableapps.com.
+2. Shotcut Portable
+Editor video open source con opzioni di esportazione compressa.
+Interfaccia semplice, supporta drag & drop.
+Scaricabile come ZIP da shotcut.org.
+3. FFmpeg (versione binaria)
+Non ha interfaccia grafica, ma è estremamente potente.
+Può essere usato via prompt per compressione automatica.
+Scaricabile come archivio ZIP da ffmpeg.org.
+
+
+
+
+
+
+
+Abbassare ventole, non oltre 30
+
+
+trace a macchina in prod, con corrente RMS e picco di tutti i motori 
+  NomeMotore /I rms /I max
+  
+  
+  
+  439102
+  
+  
+  
+  
+  
+  
+  128 356 -- 228
+  
+  
+ 
+ 
+ 
+ 	SWC_UtilitiesOpeningSealingPartMachine_Fix1: BOOL:=TRUE;    //250318 LanzariniG: corretta gestite valvole delle utenze aria e vuoto per la parte seal della macchina. Abbiamo macchine che possono essere solo Seal e altre Seal/Standard quindi per il primo caso non si può guardare G2_PbOnOff_EnableSealedFormat_Retain per la gestione delle valvole perchè la variabile globale non viene scritta in nessuna parte del codice.
+	//SWC_CheckBoolNdxTo250: BOOL:=TRUE;    //250325 LinguerriM: allargato indice CheckBoolNdx nella S9_99_Paneldata da 200 a 250 perchè il numero dei BIT aveva superato la dimensione di 200*32 , PLC0,1,2,3
+
+	SWC_HotGlueFlapCheckOpenTime_Fix: BOOL:=TRUE;   //KholodD: correzione del parametro usato per il controllo colla secca sul blank flap. Prima erroneamente era usato il P070 invece di P072
+
+
+HWC_SpeedUp600_BlankLoadingSpeedUp: BOOL:=FALSE;    //211025 Gianca: velocizzazione caricamento blank. A 600ppm si rischia di caricare in ritardo provocando problemi in tramoggia.	//220204 Gianca: importato da TH183F0_plc0_ip12_u87_211228
+
+
+SWC_LabellerWithSercosKO_Rephasing: BOOL:=TRUE;	    //250131 LanzariniG/FalascaM: sisteama sfasatura delle etichettatrici dovuta alla caduta del Sercos e riarmato il TP della fotocellula della correzione etichetta sul traino.
+
+
+HWC_StiffenerSpliceRejectionJet_AdvanceOnHMI: BOOL:=TRUE;   //250129 LinguerriM: Inserisco anticipo a panello del soffio scarto stiffener in casa coltello.
+
+
+SWC_FormatChangeManagment_Sealed_Fix: BOOL := TRUE; //250320 FalascaM: allinea la gestione di S2_WriteSercosParameter agli altri PLC. Senza cicla della parte di codice che non dovrebbe e si rischia di disallineare il PLC3 rispetto agli altri PLC.
+
+
+SWC_HWC_InFrameMadeJunctionDetect_BackFix1: BOOL:=TRUE;     //250401 LinguerriM: Aggiunto bit visibilità per pagina giunta costruttore collarino con sensore dedicato in zona bobine. Se il bit viene spento significa che non è presente il sensore dedicato quindi i parametri tornano visibili sulle pagine che reciclavano i sensori di centratura stampa per eseguire anche questa funzione
+
+
+//SWC_CheckBoolNdxTo250: BOOL:=TRUE; //250325 LinguerriM: allargato indice CheckBoolNdx nella S9_99_Paneldata da 200 a 250 perchè il numero dei BIT aveva superato la dimensione di 200*32 , PLC0,1,2,3   
+
+
+
+
+
+TC:
+    
+HWC_Perforator_Presence: BOOL:= FALSE;      //	20200218 Roffia: aggiunta gestione perforatore
+HWC_OutfeedBelt2: BOOL:=FALSE;      //200213 VenturiniF: inserito secondo nastro uscita //200403 Salinitrol: importata da TC160J1 Trier.
+
+
+HWC_MC4_1stBoxTransferA_Idle: BOOL:=TRUE;   //220214 ConsalviL: abbasso la corrente limite del motore orizzontale durante la sosta per evitare che vada in i2t a causa della spinta indietro delle stecche elastiche.  
+
+
+HWC_SharedGlueTank_OnTS: BOOL:=TRUE;        //221129 PappiD:Tank Hot Melt shared between TC and TSW: gestione con NetVar.
+
+HWC_SharedGlueTank_OnTS_StopInPhaseNoEmpty: BOOL:=FALSE;        //221229 VenturiniF: Da richiesta di Iuri, quando ho la richiesta di stop dalla TW alzo un allarme di stop in fase con autoripartenza senza svuotamento.
+
+
+HWC_HermosCameraOnMachine_OnBoxForming: BOOL := TRUE;   //230418 VenturiniF: Tlc Bundle su 1stBoxTransfer (gruppo Box Forming).
+
+HWC_HermosCameraOnEntry_TrigOnLE: BOOL := TRUE;  //231212 VenturiF/VictorA: guardo i LE di MCv_StackTransferH per dare il trigger in questo modo mi svincolo dalla fase di partenza di 1st Box Pusher.
+
+HWC_ParameterLock_Extended: BOOL:=TRUE;	//231214 Salomoni: ampliata lista di parametri bloccati rispetto a quella standard e fatto in maniera svincolata da quest'ultima.
+
+HWC_FilmKnife_NoBrake: BOOL:=TRUE;  //240416 VenturiniF: rimossi i freni da svolgitore e coltello film.
+
+HWC_Deionizer_24V: BOOL:=FALSE; //240527 VenturiniF: nuovo deionizer 24 V. Cambiano segnali di IO perchè passati da Q2 a Q1 e aggiunta di due allarmi. Riferimento TW_u42.
+
+HWC_HermosCamera_BundleInProgress_Phase: BOOL:=TRUE;    //230816 ConsalviL: il valore di L_HermosCamera_BundleInProgress_Phase deve cambiare.
+
+
+
+
+
+
+HWC_TTReelGroup_Hide: BOOL := FALSE; //250211 VenturiniF: aggiunto bit di visibilità per nascondere gruppo TT nel caso non sia presente in macchina
+
+(*--------------------------------------u41_EFM-------------------------------------------------------------*).
+HWC_LateralBoxContrast: BOOL:=FALSE; // Venturini/Pappi: Aggiunti cilindri di contrasto stecca su Box Forming. Aggiunti relativi parametri a pannello. Installato prima volta su TC196M1.
+HWC_CountUpStop_DataLoggingV8: BOOL:=TRUE;	//250306 PappiD: Stop al conteggio dei 5 pacchetti se allarme attivo per coerenza con gli stati del TMC se acceso.	
+HWC_AddFwVersionInfoInApplicationTypePage: BOOL:=FALSE;	//240911 RoversiA: Inserimento di un campo in sola lettura, nella pagina dedicata all'application type dei drive, per la visulizzazione della versione del firmware caricato sul drive selezionato.
+	
+(*--------------------------------------u42_EFM-------------------------------------------------------------*).
+HWC_BypassDownStreamBeltMoveIfMachineEmpty: BOOL:=FALSE;	//201003 VenturiniF: bypasso l'allarme di downstream belt not moving quando ho macchina vuota e sono in riempimento. Da un cliente in Turchia la Case packer ferma il nastro dopo un certo tempo in cui non ha il ready da tc, questa non ha il ready perchè non ha carico minimo e non gli arrivano pacchetti perchè th ha downstream external alarm.	
+
+HWC_FastFormatChange: BOOL := FALSE; //240722 MantovaniF: Gestione dei posizionamenti per cambio formato rapido. VenturiniF: inglobato.
+HWC_FastFormatChange_AddedBeltsOscillator:BOOL:=TRUE; //240829 RoversiA: Aggiunto BeltsOscillator a cambio formato rapido HWC_FastFormatChange.
+HWC_CIL_Selector: BOOL:=FALSE;	//240726 MonariM/VenturiniF Inserito circuito CIL per taglio aria,vuoto,enable ai drive per manutenzione macchina. VenturiniF: gestione Cil Selector per cambio formato rapido.
+HWC_BoxFilmLowerWelder_Group: BOOL:=FALSE; //PappiD: nuovo gruppo Film Lower Welder - ATTENZIONE!!! aumentare a 20000 la dimensione delle retain solo se prima installazione altrimenti lasciare 10000. Cercare G_RetainDW[ e G_RetainBools[  per inizializzare dimensione memoria ritentiva.
+
+
+SWC_BinFullOnExitAlarm_AutoReset: BOOL:=TRUE;   //240729 FalascaM: l'allarme bidone scarti pieno è diventato un allarme autoresettante.
+
+SWC_MoveBoxFilmPusher_Fix2: BOOL:=TRUE; //240218 SalomoniVenturini: evito di togliere il FirstCamChoice all'MCV_BoxElevator durante il rifasamento altrimenti se si era fermato mentre aveva una stecca facciamo un ingolfo perche gliene infiliamo un'altra dentro alla successiva ripartenza.
+
+
+
+SWC_BinFullOnExitAlarm_AutoReset: BOOL:=TRUE; //240729 FalascaM: l'allarme bidone scarti pieno è diventato un allarme autoresettante.
+
+
+
+
+
+
+
+
+SWC_Statistic_MachineStoppedWaitingMaterial: BOOL := TRUE; //251023 VenturiniF: come da richiesta per mail aggiungo un bit a pannello per segnalare mancanza di materiale.	
+SWC_BeltsOscillator_SetPosAfterReph: BOOL:=TRUE;	//240521 VenturiniF/GurioliN: faccio un setpos su beltsoscillator dopo averlo portato nella sua offsetafterhome durante il rephasing del gruppo. Se qualcuno ha compiuto più giri della biella dell'oscillator (ed è consentito farlo in quanto non c'è un blocco meccanico) mi riporto in camma facendo n giri. in questo modo mi riporto nel periodo.
+SWC_WhiteLampEnable_Fix2: BOOL:=TRUE; //250226 Fornello/VenturiniF: se HWC_LightByOpeningDoor alto voglio che all'apertura dei carter mi si accenda la luce bianca. Probabilmente quanso si è fatto l'hwc non erano ancora presenti luci di diverso colore.
+
+SWC_FilmFolderRephasingProcedureImprovement2: BOOL :=TRUE; //250224 VenturiniF: assegno un target calcolato dal metodo TargetNearestNoInterference sol ose sono in interferenza altrimenti il target è 0 (non mi muovo). Inoltre il metodo NoInterferenceZone mi restituisce 0 se sono in interferenza altrimenti mi restituisce un valore >0: per assegnare, quindi, un target diverso da 0 devo guardare se il risultato resituito è = 0 e non >0. 
+SWC_SampleTimeFix: BOOL:=TRUE;	//241104 ConsalviL/PappiD: nel passaggio dell'integrale della velocit per le statistiche veniva buttato il campione in formazione, questo causava che il tempo integrale era mediamente 59.5s invece che 60.0s.
+//SWC_AvoidIndexIntegrityOutOfRange: BOOL:=TRUE;//250204 PappiD: limitato l'indice array. 
+SWC_LateralBoxContrast_AdvanceOnHMI: BOOL:=TRUE; //250303 Venturinif: aggiunti a pannello anticipi su EV .
+SWC_LateralBoxContrast_ReedOnCyl: BOOL:=TRUE; //250303 Venturinif:  aggiunti reed su cilindri con relativi allarmi.
+SWC_MinimumReelDiamater_Warning: BOOL := TRUE; //250204 VenturiniF: aggiunto warning sul diametro minimo del tear tape (10mm prima di raggiungere il diametro del core).
+
+SWC_VacuumDisableInStop: BOOL:=TRUE; //250124 VenturiniF: tolgo il comando di vuoto dal Carton P&P quandola macchina è ferma e la sua posizione è vicina alla zona di prelievo. Se ho prelevato il cartone e sono nella fase di consegna non lo rilascio altrimenti perderei il blank. 
+SWC_BlankDetachBlowPresent_Fix: BOOL:=TRUE;	//250310 VenturiniF: aggiunta visibilità ai campi dati relativi alla valvola aggiunta.
+SWC_BlankHopperVibrator_Fix: BOOL:=TRUE;//250310 VenturiniF: scrittura dello stato di active del pulsante manuale dell' EV BlankHopperVibrator. Quando veniva azionata non veniva evidenziato il pulsante nonostante l' EV venisse comandata.	
+SWC_SharedGlueTank_OnTS_Fix2: BOOL:=TRUE;	//250311 VenturiniF: Se ho il bidone colla condiviso su TS ma non ho il blank o ho le colle spente allora non blocco la TW quando mi richeide una fermata.	
+SWC_KeyenceCamera_BlankFlapOpen_Fix2: BOOL:=TRUE;	//250311 VenturiniF: Pubblicato a pannello posizione LEV di MCV_BoxElevator che è il riferimento per il controllo KeyenceCamera_BlankFlapOpen.
+SWC_InverterEnableSafetyError: BOOL:=TRUE; //241129 MonariM: verifico gli ingressi fisici di che escono dalle centraline torque/emergenza,carter,porte quadri,cassa coltelli e se installato il modulo di sicurezza ingresso fustelle; se ho la mancanza di uno di questi segnali NON devo avere il segnale di Inverter Enable alto sul drive (vale SOLO per i Drive configurati come Real).Per i due Drive dedicati alla cassa coltelli i Carter sono esclusi.Se ho il segnale di Inverter Enable alto e dovesse mancare uno di questi ingressi provenienti dalle centraline safety, alzo un allarme di Anomalia (Allarme Bianco).
+
+
+
+
+TW.
+
+HWC_T_ReelsOvercurrentDelay: BOOL:=TRUE; //250526 PappiD: messo a 3 secondi ritardo overcurrent bobine perchè riduttori sempre più piccoli e bobine sempre più pesanti
+
+(*u50*).
+HWC_FilmLatWelderBackwardTimeDecrease: BOOL:=FALSE; //250210 MantovaniF: ridotto il tempo (costante) di arretramento dei saldatori laterali a 20ms (sufficienti per 80° ritorno a 620 ppm) - Senza HWC non potevo ridurre oltre i 90° il movimento di ritorno del saldatore, in quanto a 600 ppm 90° = 25ms - Fare riferimento alla Wiki per la documentazione relativa al funzionamento del tempo costante. Da attivare sulle macchine che necessitano di superare il vincolo del tempo di ritorno in 25ms alla max velocità.
+
+HWC_WalkingBeamDisengageShowParam: BOOL:=TRUE;  //250328 PappiD: visualizzazione camma su HMI per il disinnesco dello spingitore.
+HWC_LampBlinkMinLoads_BlueStageLamp: BOOL:=FALSE;   //250409 VenturiniF: faccio lampeggiare le luci blu della colonna luminosa per mancanza di materiale #P216501#	.
+HWC_DelayDownsteramsOnHMI: BOOL:=FALSE; //250403 PappiD/Iuri: visualizzazione tempo di ritardo fermata lanciatori dopo un downstream.
+HWC_VertLaunchOutChangeFTCandPosition: BOOL:=FALSE; //250408 PappiD: cambiata posizione e tipo di fotocellula (con 2 soglie) di deriva del lanciatore gruppo verticale.Dai video si ha 2ms di ritardo e modificare parametro 0019.0052 = 308.5.
+(*u53*).
+HWC_CustomerQRCodeCamera: BOOL:=FALSE;  //240424 PappiD: gestione scarto pacchetto e trigger con sistema di visione QR Code terze parti installato dal cliente.
+HWC_UpperRecoveryHopper: BOOL:=FALSE;   //250128 PappiD: aggiunta tramoggia di recupero in cielo tipo TC, la FTC di presenza bollino viene messa dopo i lanciatori	.	
+HWC_CountUpStop_DataLoggingV8: BOOL:=TRUE;  //250306 PappiD: Stop al conteggio dei 5 pacchetti se allarme attivo per coerenza con gli stati del TMC se acceso.
+HWC_YellowLampWithStampsMinLoad: BOOL:=TRUE;    //241213 VictorA: su richiesta del cliente, accendo la lampada gialla quando si scopre il sensore di carico minimo.
+(*u54*).
+HWC_CIL: BOOL:=FALSE;   //240726 MonariM Inserito circuito CIL per taglio aria,vuoto,enable ai drive per manutenzione macchina//250430 BorelliM: importata da TSW152J1_u43_SerieC_240829.
+HWC_LauncherBeltAlternate_Hide: BOOL:=TRUE; //250514 PappiD: nascosto selettore LauncherBeltAlternate e forzato a FALSE.
+
+
+
+SWC_Statistic_V8_2_Fix2: BOOL:=TRUE; //250526 PappiD: l'allarme esterno 34 deve aspettare la NetVar della macchina a valle altrimenti vine registrato sempre il 34
+
+(*u49*)	.
+SWC_WhiteLampEnable_Fix2: BOOL:=TRUE; //250226 Fornello: corretta accensione luce bianca aprendo i carter.
+SWC_Statistic_MachineStoppedWaitingMaterial: BOOL:=TRUE; //250213 RoversiA: come da richiesta per mail aggiungo un bit a pannello per segnalare mancanza di materiale //Preso da TC1_PD3_EFM_u39.
+
+(*u50*).
+/	SWC_AvoidStopMachineWithPKnoDownstream: BOOL:=TRUE; //250306 BredaL/CuculoJ: la macchina si fermava coi pacchetti in Ruota anche se TC funzionante.
+SWC_InverterEnableSafetyError: BOOL:=TRUE; //241129 MonariM: Controllo gli ingressi fisici che escono dalle centraline di sicurezza  torque/emergenza,carter,porte quadri e solo per i drive sotto laser scanner l'ingresso fisico proveniente dalla stessa centralina ; se ho la mancanza di uno di questi segnali NON devo avere il segnale di Inverter Enable alto sul drive (SOLO per i Drive configurati come Real).Se ho l'inverter enable alto e uno di questi segnali basso allora lancio un allarme di Anomalia Inverter Enable (Allarme bianco)poichè abbiamo uin incoerenza sui segnali	.
+*u51*).
+WC_AvoidGlueAfterWheelMove: BOOL:=TRUE; //250314 PappiD: setto scarto bollini se ruota mossa in TorqueOFF.
+SWC_AvoidGlueAfterWheelMove_Fix1: BOOL:=TRUE; //250317 PappiD: abilitazione colla solo se in presenza dello stamper e in automatico.
+//SWC_ConfigInit BOOL;	//250320 RubiniA: introdotto Program S1_0_01_ConfigInit per inserire della logica nell'inizializzazione dei parametri numerici di configurazione macchina. Viene richiamato all'init ella task 1 del main e richiamato nella task2 con macchina in no op.
+SWC_SlowSpeedWhenMissingPacket_Fix: BOOL:=TRUE; //250212 Fornello: corretta anomalia in simulazione non raggiungeva la velocita' massima impostata.
+(*u52*).
+SWC_PhaseRotationCheckOk_Fix: BOOL:=TRUE; //250331 Fornello: filtrato segnale del controllo rotazione fasi che generava brevi interruzioni.
+SWC_RemovePacketOnOutfeedHeatedBelt_Fix1: BOOL:=TRUE; //250331 PappiD/Iuri: l'allarme di svuotamento del fornetto è ritardato di 15 secondi per permettere di ripartire più in fretta.
+SWC_RemovePacketOnOutfeedHeatedBelt_Fix2: BOOL:=TRUE; //250331 PappiD: se carter aperto non si triggera l'allarme rimozione pacchetti da fornetto.
+SWC_RemovalExitWelder_DisasterRecovery: BOOL:=TRUE; //250403 PappiD: il nastro si apre non ancora fermo e scompone i pacchetti.
+SWC_RemovalExitWelder_DisasterRecovery_Fix1: BOOL:=TRUE; //250418 PappiD: se dopo una emergenza resetti subito si richiude.
+SWC_RemovalExitWelder_Fix2: BOOL:=TRUE; //250404 PappiD: all'uscita dal manuale il nastro rimane nella posizione alla quale era.
+SWC_KnifeZeroCrossInStopOffset_Fix1: BOOL:=TRUE; //250408 PappiD: in svolgitura entro immediatamente nella routine di ricerca tacca se il gruppo è spento per settare il valore di standstill .
+(*u53*).
+SWC_StartPreinfeedBelt_Fix2: BOOL:=TRUE; //250418 PappiD: faccio partire il canale in JOG se muovo la macchina perchè con la fotocellula sul piano orizzontale capita che il carico minimo rimane coperto e si svuotano i lanciatori.
+SWC_TMC1Plus_StopReasonAndStateMachineManagementFix6: BOOL:=TRUE;	//250327 PappiD: il TMC salta gli stati intermedi di Suspending e Holding in modo da allinearsi con l'effettiva pubblicazione dell'allarme dal DataLogging e calcolare il tempo da Execute a Execute.	
+//	SWC_LoaderPopUp_Fix1: BOOL:=TRUE; //250506 VictorA: correggo l'input per il popup
+(*u54*).
+SWC_SpiderUpperPresent_ResetVertInfeedArray: BOOL:=TRUE; //250507 PappiD/CuculoJ: aggiunto pulsante per reset array verticale per evitare fermate in ripartenza. 
+	SWC_RejectEfficiencyCheckAlways: BOOL:=TRUE; //250507 VictorA: controllo se la ftc ha visto qualcosa anche se non ho la presenza, questo per bloccare i pacchetti senza film.
+	SWC_SafetyDoorSplicerUnlock_Left_Fix2: BOOL:=TRUE; //250507 PappiD: il magnete di destra deve essere sempre spento per chiudere lo sportello mentre quello di sinistra si blocca durante la giunzione.
+	SWC_HWC_ExitGroupEmpty_DownstreamAlarm_Fix4: BOOL:=TRUE;	//250512 Salomoni: aggiunta condizione della HeatedBelt in movimento per fare la richiesta L_MCV_TWExit_EmptyRequest, altrimenti svuotavamo l'uscita della tsw creando un jam.
+(*u54*).
+	SWC_UpperRecoveryHopper_Fix: BOOL:=TRUE; //250509 BusiL: faccio partire il nastro se tramoggia attiva.
+	SWC_FilmLatWelderGotoSafeReqOnReph: BOOL:=TRUE; //250512 PappiD: i saldatori in rifasamento si chiudevano.
+	SWC_UpperRecoveryHopper_AlarmReset_Fix: BOOL:=TRUE; //250513 BusiL: modificato tipo di reset dell'allarme. Approvato da PappiD.
+
+
+
+
+
+
+LIMIT(0.0,sel(SWC_FanAdjustment_Fix_BMJ, L_FanCabinet3_OUT_Slow, L_FanCabinet3Ext_OUT_Slow),100.0)/100.0);	
+
+
+sel(SWC_FanAdjustment_Fix_BMJ, L_FanCabinet3_OUT_Slow, L_FanCabinet3Ext_OUT_Slow)
+
+
+
+Ventola Q3:
+    
+K080010.AB52    PBQW_M050003_FanCabinetQ3_Up
+
+
+	L_FanCabinet3Ext_OUT_Slow:											INT:=20;	// SWC_FanAdjustment_Fix_BMJ
+	L_FanCabinet3Ext_OUT_Mid:											INT:=40;	// SWC_FanAdjustment_Fix_BMJ
+	L_FanCabinet3Ext_OUT_Fast:											INT:=70;	// SWC_FanAdjustment_Fix_BMJ
+    
+    
+    
+5503250  FANDIS FF12U FILTRO
+
+
++39 347 3851637
+
+
+=243.12 * (LN(B1/100) + (17.62 * A1) / (243.12 + A1)) / (17.62 - LN(B1/100) - (17.62 * A1) / (243.12 + A1))
+
+
+Temperatura in °C (A1)
+Umidità relativa in % (B1)
+Pressione atmosferica in mBar (C1)
+=243.12*(LN((B1/100)*6.112*EXP((17.62*A1)/(243.12+A1)))-LN(C1))/(17.62-LN((B1/100)*6.112*EXP((17.62*A1)/(243.12+A1)))+LN(C1))
+
+
+come se fossi un programmatore python esperto di manipolazione dati e csv, puoi creare uno script python/tk che permetta di caricare un file csv tramite interfaccia grafica e crei dei grafici di tutti i sensori presenti in questo file csv di esempio? 
+Deve gestire anche file non condificati in UTF8
+i dati ambientali di temperatura, umidita e pressione devono essere visualizzati nello stesso grafico, ciascuno con la sua unità di misura e scala indipendente, mentre i grafici di accelerometri, giroscopi e magnetometri devono avere ognuno il suo grafico.
+I grafici devono essere navigabili dinamicamente e permettere la visualizzazione dei valori in modo semplice
+
+
+
+Ho una schedina con un SOC ESP32-DOWDQ6, tre pulsanti, una porta usb-C ed un display Estardyn IPS St7789V da 1.14" integrato. Quale è il modo più semplice per programmarlo, la toolchain necessaria ed i tool di sviluppo da installare su windows10 per farlo?
+
+fammi un programma di esempio completo, utilizzando VSCode+PlatformIO, che gestisca i tre pulsanti e tre pagine sul display: la prima con il nome della rete wifi collegata, la seconda con le risorse del sistema libere ed occupate (ram, cpu), e la terza unpiccola immagine con del testo sotto 
+
+SWC_B800001_OutfeedConveyorMaxLoadOnHMI_Fix
+
+G1_2_Force_OutfeedBeltStart
+
+Alarm_3845
+
+Speed),MD.D.MCI_ExitBelt_Hz,L_MCI_ExitBelt_HzReducedSpeed);
+
+SWC_ChannelBelt_ReducedSpeed
+
+
+Ventola M053602 AB164+
+
+
+HWC_BundleWheelLowerTinFoilFlapPositionCheck
+
+HWC_BundleWheelLowerTinFoilFlapCheck
+
+HWC_BundleWheelLowerTinFoilFlapCheck (plc0 + plc2)	10/05/25	PalermoM: TEST in cantiere: A fronte di bundle trovati strappati nella zona inferiore (opposta all'etichetta) che non si vedono con le telecamere sul transfer, abbiamo aggiunto con Negrini una fotocellula a sbarramento Datalogic per calcolare l'integrale del flap inferiore della stagnola in rotazione prima di saldare.
+
+
+
+-T014001 +0001/0140.0 AZIONAMENTO MOTORE A= RUOTA TRAMOGGIA SIGARETTE
+MOTOR ACTUATION A= HOPPER WHEEL
+
+AZIONAMENTO MOTORE HOPPER WHEEL SCHNEIDER LXM62DC13C21000 400 Vac 130 
+
+A 6043857 TH1Q070004 1 
+MOTOR ACTUATION A= 
+
+SCHNEIDER LXM62DC13C21000
+
+AZION.X BRUSH.
+
+
+
+TP_15.Value
+
+B440003_BundleWheelLowerTinFoilFlapCheck
+B440003_BundleWLowerTinFoilFlapCheck
+
+B0	4662
+
+Sensor feedback - B440003
+
+2dio_i_1
+
+
+
+
+Modifiche al foglio interfaccia:
+variabili   6486        Sensor feedback - B440003
+variabili   4604        B440003_BundleWLowerTinFoilFlapCheck
+I_O         270         B440003_BundleWLowerTinFoilFlapCheck
+CauseScarto 200         
+
+
+
+
+passo 30
+n scarti 30
+scarti dal 45 al 15, giunta in mezzo
+ 
+setto al passo 70 +-15 (30pkg)
+
+spostare da 70 a  80    e vedere se calare il numero di scarti, e poi 
+
+
+
+Distanza Mark Photocell (B362002) - tinFoil folder
+225.5 lungh tinfoil
+
+
+W4_1276 - dist tra B362002 e TF_Folder
+8503 ----> 37.7 - 38 fogli
+10900 --->  48.3 - 48 fogli
+
+
+
+ W4_3116  dist Splicer/TF_CutDrum  90--> 70
+ W4_3115  Num Reject for splice
+
+
+
+
+
+
+
+
+LMC_PacDrive.Application.Global_HWC_Ermetico_Variables.HWC_TinFoilCutDrumAligner_SpliceFreeze
+ p290   135
+ p291   153
+ 
+ 
+ s4_11_control legge la fase P290
+ 
+ 
+ W4_2421 MD.D.MCV_TinFoilFolder_IndexWriteToInfeedShift : spostare da 13 a 14
+ 
+ 
+ 
+ Codici da rendere:
+
+
+nr. 1   6990022     MICRO PORTA DI SICUREZZA COMITRONIC-BTI SM1-OX-R-OX-FL
+nr. 1   6043247     AZIONAMENTO SCHNEIDER LXM62DD45C21000 45A
+nr. 2   6043857     AZIONAMENTO SCHNEIDER LXM62DC13C21000 130A  
+nr. 2   6042931     AZIONAMENTO SCHNEIDER LXM62DD27D21000 27A
+nr. 1   6032191     Alim Switch PHOENIX QUINT-PS/3AC/24DC/40
+nr. 1   6032127     Alim Switch PHOENIX QUINT-PS/3AC/24DC/20
+nr. 1   6252892     FLUSSOSTATO SMC PFM711S-F02-F
+
+
+
+Linea 1
+alimentatore 24V T040001 che alimenta i rack PLC.
+alimentatore 24V T040402 che alimenta le ventole.
+alimentatore 24V T044103 che alimenta LOGICA nel quadro Q2.
+alimentatore 24V F040401 (era già bruciato qualche settimana prima)
+
+Drive T018001 27A Q3 sopra basamento - SCHNEIDER LXM62DD27D21000
+
+Drive T014001 130A Q3 dentro macchina - SCHNEIDER LXM62DC13C21000 di Hopper Wheel 
+
+
+8-11:30   11:30-17:00
+
+
+Materiale da prendere:
+    estensione chiavi a bussola x drive
+    guaina termorestringente varie misure
+    carta gommata
+    guarnizioni per quadri
+    qualcosa per fare filtri
+    roba di Diego
+    analizzatore di rete
+   
+ 
+Omron:
+    
+    print "Add  "; ERROR#; "to AVE - "; COUNTNUM& 
+    
+    ''''''''''''''''Aggiornamento EMA per ERROR#
+If Abs(ERROR#) < MAXERR# AND JUDGE# = 1 Then
+  ' Se e la prima misurazione, inizializza la media
+  If COUNTNUM& = 0 Then
+    AVE# = ERROR#
+  Else
+    ' Calcolo dell'EMA
+    AVE# = (ERROR# * ALPHA#) + (AVE# * (1 - ALPHA#))
+  EndIf
+  COUNTNUM& = COUNTNUM& + 1
+End
+
+    ' Calcolo dell'EMA
+    AVE# = (ERROR# * ALPHA#) + (AVE# * (1 - ALPHA#))
+''''''''''''debug:    Print "Add  "; ERROR#; "to AVE - "; COUNTNUM& 
+  EndIf
+
+
+SWC_TinFoilSpliceReject_PrintCenteringRemove
+
+	SWC_TinFoilSpliceReject_PrintCenteringRemove: BOOL:=FALSE; (plc0) //241210 FalascaM: non vengono più settati scarti C_RejectCode_13500 dopo la giunta macchina o costruttore senza motivo. 

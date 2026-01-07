@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.egg-info/
+*.dist-info/
+# IDE
+.vscode/
+*.suo
+*.user
+# audio / large generated images
+*.jpg
+*.wav
+test*/
+path/
+future/
+_old/
