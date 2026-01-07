@@ -1,10 +1,7 @@
 import os
 import logging
-import numpy as np
-import matplotlib.pyplot as plt
-import librosa
-import librosa.display
-from PIL import Image, ImageDraw
+from waveform import generate_waveform, generate_waveform_pillow, generate_waveform_rosa
+import waveform as wf
 from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter
@@ -351,7 +348,7 @@ class Mp3Widget(QWidget):
         plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
         print(f"{self.mp3file.file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Media: {audio.mean()*1000:.8f}")
         plt.close()
-        return mp3WaveformImagePath
+        return wf.generate_waveform_rosa(self.mp3file.file_name, self.file_duration)
 
     def create_progress_bar(self):
         waveform_image_path = self.generate_waveform_rosa()
