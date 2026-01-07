@@ -1,3 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.egg-info/
+*.dist-info/
+.vscode/
+*.jpg
+*.wav
 # Python
 __pycache__/
 *.pyc
