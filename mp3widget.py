@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from waveform import generate_waveform_rosa, generate_waveform_HS
 import waveform as wf
 from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
@@ -331,13 +332,72 @@ class Mp3Widget(QWidget):
         return wf.generate_waveform_HS(self.mp3file.file_name, self.file_duration)
 
     def generate_waveform_rosa(self):
-        # Delegate waveform creation to waveform module (runs synchronously)
-        # Use high-speed streaming implementation
-        return wf.generate_waveform_rosa(self.mp3file.file_name, self.file_duration)
+        """Fast waveform for UI: return a quick low-res image immediately,
+        and (for large files) spawn a background thread to generate a high-res
+        waveform and update the progress bar when ready.
+        """
+        try:
+            fpath = self.mp3file.file_name
+            fsize = os.path.getsize(fpath)
+        except Exception:
+            fsize = 0
+
+        # thresholds (bytes)
+        LARGE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB
+
+        # If small file, generate full-res synchronously for best quality
+        if fsize <= LARGE_FILE_BYTES:
+            try:
+                return wf.generate_waveform_HS(fpath, self.file_duration, width=1500)
+            except Exception:
+                return wf.generate_waveform_rosa(fpath, self.file_duration)
+
+        # For large files: generate a quick low-res image and return it,
+        # then spawn background generation of high-res image.
+        try:
+            low_width = 600
+            low_path = wf.generate_waveform_HS(fpath, self.file_duration, width=low_width)
+        except Exception:
+            # fallback to librosa-based quick generation
+            low_path = wf.generate_waveform_rosa(fpath, self.file_duration)
+
+        # spawn background thread to create high-res and update stylesheet
+        def bg_task():
+            try:
+                high_path = wf.generate_waveform_HS(fpath, self.file_duration, width=1500)
+                # schedule UI update on main thread
+                QTimer.singleShot(0, lambda: self._set_progress_bar_background(high_path))
+            except Exception as e:
+                self.logger.debug(f"Background high-res waveform failed: {e}")
+
+        threading.Thread(target=bg_task, daemon=True).start()
+        return low_path
+
+    def _set_progress_bar_background(self, waveform_image_path):
+        # Build same stylesheet used in create_progress_bar and apply it
+        try:
+            style = f"""
+            QProgressBar {{
+                border: 1px solid grey;
+                background-color: transparent;
+                border-image: url({waveform_image_path}) 0 0 0 0 stretch stretch;
+                background-repeat: no-repeat;
+                background-position: left center;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: rgba(0,255,0,100);
+                width: 1px;
+            }}
+            """
+            if hasattr(self, 'progress_bar') and self.progress_bar is not None:
+                self.progress_bar.setStyleSheet(style)
+        except Exception:
+            pass
 
     def create_progress_bar(self):
-        # waveform_image_path = self.generate_waveform_HS() 
-        waveform_image_path = self.generate_waveform_rosa()
+        waveform_image_path = self.generate_waveform_HS() 
+        # waveform_image_path = self.generate_waveform_rosa()
         progress_bar_style = f"""
         QProgressBar {{
             border: 1px solid grey;
