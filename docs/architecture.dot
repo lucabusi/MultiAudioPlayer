@@ -1,0 +1,50 @@
+digraph G {
+    rankdir=LR;
+    node [shape=box, fontsize=10];
+
+    MainApp [label="MainApp\nmp3_widgets: list\ngrid_layout: QGridLayout\nopen_files\nsave_project\nload_project\ndragEnterEvent - QDragEnterEvent\ndropEvent - QDropEvent"];
+
+    Mp3Widget [label="Mp3Widget\n__init__ - mp3_audio_file, layout\ncreate_ui_elements\napply_layout\ncreate_progress_bar\ngenerate_waveform_HS - returns jpg path\ngenerate_waveform_rosa - returns jpg path\nupdate_progress_bar\nw_play_pause\nw_stop\nw_fade_in\nw_fade_out\nw_remove_file\nspawns background daemon thread for high-res waveform"];
+
+    ClickableProgressBar [label="ClickableProgressBar\nclicked signal float\nmousePressEvent"];
+
+    Mp3WidgetMimeData [label="Mp3WidgetMimeData\nsetWidget\ngetWidget"];
+
+    Mp3File [label="Mp3File\n__init__ - file_name\nplay_pause\nstop\nset_volume - volume\nget_volume\nset_position - pos\nget_position\nfade_in - duration, end_volume\nfade_out - duration, start_volume, end_volume\nsignals: fadeInFinished, fadeOutFinished\nwraps vlc.MediaPlayer"];
+
+    FadeController [label="FadeController\n__init__ - duration, start_volume, end_volume\nstart - starts QTimer\nupdate - emits update_volume\nsignals: update_volume, finished"];
+
+    waveform [label="waveform.py\ngenerate_waveform_HS - streaming envelope, saves jpg\ngenerate_waveform_rosa - librosa/matplotlib, saves jpg\ngenerate_waveform_pillow - pillow draw, saves jpg\ngenerate_waveform - legacy matplotlib, saves jpg\ndeps: librosa, soundfile, numpy, matplotlib, Pillow"];
+
+    utils [label="utils.py\nWidgetLayout enum\nseconds_to_min_sec"];
+
+    BackgroundWorker [label="BackgroundWorker\ndaemon thread used by Mp3Widget\nruns heavy waveform generation\nupdates UI via QTimer.singleShot (main thread)"];
+
+    /* Relationships */
+    MainApp -> Mp3Widget [label="contains (GUI)", arrowhead=none];
+    Mp3Widget -> Mp3File [label="controls / uses (playback)", color=blue];
+    Mp3Widget -> ClickableProgressBar [label="creates (GUI)", color=black];
+    Mp3Widget -> Mp3WidgetMimeData [label="creates on drag (GUI)", style=dotted];
+    Mp3Widget -> BackgroundWorker [label="spawns (daemon thread)", style=dashed, color=gray];
+    BackgroundWorker -> waveform [label="calls heavy compute", color=green];
+    Mp3Widget -> waveform [label="requests quick waveform (sync)", color=green];
+    Mp3File -> FadeController [label="creates/uses (GUI thread)", color=orange];
+    FadeController -> Mp3File [label="signals update_volume -> set_volume", color=red];
+    Mp3File -> vlc [label="wraps vlc.MediaPlayer", color=gray];
+
+    /* Groups */
+    subgraph cluster_ui {
+        label="UI (main thread)";
+        style=dashed;
+        MainApp; Mp3Widget; ClickableProgressBar; Mp3WidgetMimeData;
+    }
+
+    subgraph cluster_backend {
+        label="Backend (may include background threads)";
+        style=dashed;
+        Mp3File; FadeController; waveform; BackgroundWorker; utils;
+    }
+
+    /* Legend */
+    Legend [label="Legend\nsolid arrows = synchronous / same-thread\ndashed arrows = thread spawn / async\nred arrows = Qt signals\n", shape=note];
+}
