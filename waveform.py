@@ -1,5 +1,7 @@
 import os
+import hashlib
 import logging
+import tempfile
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
@@ -8,6 +10,17 @@ import soundfile as sf
 from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
+
+_WAVEFORM_CACHE_DIR = os.path.join(tempfile.gettempdir(), 'mp3player_waveforms')
+
+
+def _waveform_cache_path(file_name: str) -> str:
+    """Return a unique, stable cache path for the waveform of file_name.
+    Uses an MD5 hash of the absolute path to avoid filename collisions.
+    """
+    os.makedirs(_WAVEFORM_CACHE_DIR, exist_ok=True)
+    h = hashlib.md5(os.path.abspath(file_name).encode()).hexdigest()
+    return os.path.join(_WAVEFORM_CACHE_DIR, h + '.jpg')
 
 
 def generate_waveform(file_name, file_duration):
@@ -24,7 +37,7 @@ def generate_waveform(file_name, file_duration):
     plt.plot(np.linspace(0, file_duration, len(audio)), audio, color='b', linewidth=0.1)
     plt.ylim(-1, 1)
 
-    mp3WaveformImagePath = f'{os.path.basename(file_name)}.jpg'
+    mp3WaveformImagePath = _waveform_cache_path(file_name)
     plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
     logger.info(f"{file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Mean: {audio.mean()*1000:.8f}")
     plt.close()
@@ -49,7 +62,7 @@ def generate_waveform_pillow(file_name, file_duration, width=1500, height=75, ta
         y2 = int(center + max_val * center)
         draw.line([(x, y1), (x, y2)], fill="blue")
 
-    mp3WaveformImagePath = f'{os.path.basename(file_name)}.jpg'
+    mp3WaveformImagePath = _waveform_cache_path(file_name)
     img.save(mp3WaveformImagePath, 'JPEG')
     return mp3WaveformImagePath
 
@@ -74,7 +87,7 @@ def generate_waveform_rosa(file_name, file_duration):
     librosa.display.waveshow(audio, sr=target_sr, axis=None, color='b', linewidth=0.1)
     plt.ylim(-1, 1)
 
-    mp3WaveformImagePath = f'{os.path.basename(file_name)}.jpg'
+    mp3WaveformImagePath = _waveform_cache_path(file_name)
     plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
     logger.info(f"{file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Mean: {audio.mean()*1000:.8f}")
     plt.close()
@@ -87,8 +100,7 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
     and renders with Pillow. Returns path to JPEG file.
     This version does NOT create or read any .npy cache files.
     """
-    base = os.path.basename(file_name)
-    mp3WaveformImagePath = f'{base}.jpg'
+    mp3WaveformImagePath = _waveform_cache_path(file_name)
 
     # streaming read to compute envelope per output pixel column
     try:

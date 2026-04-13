@@ -19,6 +19,9 @@ class FadeController(QObject):
     def start(self):
         self.timer.start(100)
 
+    def stop(self):
+        self.timer.stop()
+
     def update(self):
         if self.step_index >= self.steps:
             self.update_volume.emit(int(self.end_volume))

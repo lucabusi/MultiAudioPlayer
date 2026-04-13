@@ -1,13 +1,86 @@
 import os
 import logging
-import threading
-from waveform import generate_waveform_rosa, generate_waveform_HS
 import waveform as wf
 from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData, QThread, QObject
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter
 from utils import WidgetLayout, seconds_to_min_sec
 from mp3file import Mp3File
+
+
+class WaveformThread(QThread):
+    """Background thread for high-res waveform generation.
+    Emits `waveform_ready` with the image path when done.
+    Can be cancelled before the widget is removed.
+    """
+    waveform_ready = pyqtSignal(str)
+
+    def __init__(self, file_path: str, file_duration: float, width: int = 1500):
+        super().__init__()
+        self._file_path = file_path
+        self._file_duration = file_duration
+        self._width = width
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        if self._cancelled:
+            return
+        try:
+            path = wf.generate_waveform_HS(self._file_path, self._file_duration, width=self._width)
+            if not self._cancelled:
+                self.waveform_ready.emit(path)
+        except Exception as e:
+            logging.getLogger(__name__).debug(f"Background high-res waveform failed: {e}")
+
+
+class WaveformService(QObject):
+    """Encapsulates waveform generation strategy and QThread lifecycle.
+
+    For small files: generates full-res synchronously and returns the path.
+    For large files: returns a low-res path immediately, then upgrades to
+    high-res in a background QThread and emits `waveform_upgraded`.
+    """
+    waveform_upgraded = pyqtSignal(str)
+
+    LARGE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._thread: WaveformThread | None = None
+
+    def generate(self, file_path: str, duration: float) -> str:
+        """Return initial waveform image path. Starts background upgrade for large files."""
+        try:
+            fsize = os.path.getsize(file_path)
+        except OSError:
+            fsize = 0
+
+        if fsize <= self.LARGE_FILE_BYTES:
+            return wf.generate_waveform_HS(file_path, duration, width=1500)
+
+        try:
+            initial_path = wf.generate_waveform_HS(file_path, duration, width=600)
+        except Exception:
+            initial_path = wf.generate_waveform_rosa(file_path, duration)
+
+        self._start_highres_thread(file_path, duration)
+        return initial_path
+
+    def _start_highres_thread(self, file_path: str, duration: float):
+        if self._thread is not None and self._thread.isRunning():
+            self._thread.cancel()
+            self._thread.wait(200)
+        self._thread = WaveformThread(file_path, duration, width=1500)
+        self._thread.waveform_ready.connect(self.waveform_upgraded)
+        self._thread.start()
+
+    def cancel(self):
+        if self._thread is not None and self._thread.isRunning():
+            self._thread.cancel()
+            self._thread.wait(500)
 
 
 class Mp3WidgetMimeData(QMimeData):
@@ -40,6 +113,8 @@ class ClickableProgressBar(QProgressBar):
 
 
 class Mp3Widget(QWidget):
+    remove_requested = pyqtSignal()
+
     def __init__(self, mp3_audio_file: Mp3File, layout: WidgetLayout = WidgetLayout.TOUCH):
         super().__init__()
         self.mp3file = mp3_audio_file
@@ -58,9 +133,15 @@ class Mp3Widget(QWidget):
         self.playerState = self.mp3file.get_state()
 
         self.drag_start_position = QPoint()
+        self._waveform_service = WaveformService(self)
+        self._waveform_service.waveform_upgraded.connect(self._set_progress_bar_background)
 
         self.create_ui_elements()
         self.apply_layout()
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_progress_bar)
+        self.timer.start(50)
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.defaultBtnStyle = "border: 1px solid; border-radius: 5px;"
@@ -262,15 +343,12 @@ class Mp3Widget(QWidget):
             layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
 
         self.adjustSize()
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_progress_bar)
-        self.timer.start(50)
 
     def changeButtonStyle(self, btn, color):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")
 
     def w_play_pause(self):
-        if (self.mp3file.get_state() == 3):
+        if self.mp3file.is_playing():
             self.changeButtonStyle(self.btnPlay, "red")
         else:
             self.changeButtonStyle(self.btnPlay, "green")
@@ -281,9 +359,18 @@ class Mp3Widget(QWidget):
         self.mp3file.stop()
 
     def w_remove_file(self):
+        self._waveform_service.cancel()
         self.mp3file.cleanup()
-        self.parent().remove_widget(self)
+        self.remove_requested.emit()
         self.deleteLater()
+
+    def set_volume(self, volume: int):
+        """Public API: set volume without accessing internal widgets directly."""
+        self.slidVolume.setValue(volume)  # triggers update_volume() via valueChanged
+
+    def set_fade_time(self, seconds: float):
+        """Public API: set fade time without accessing internal widgets directly."""
+        self.spinboxFadeTime.setValue(seconds)  # triggers update_fade_time() via valueChanged
 
     def update_volume(self):
         volume = self.slidVolume.value()
@@ -306,103 +393,32 @@ class Mp3Widget(QWidget):
         self.mp3file.set_position(new_position)
 
     def update_progress_bar(self):
-        if (self.mp3file.get_state() == 3) or (self.mp3file.get_state() == 4):
-            try:
-                current_time_ms = self.mp3file.player.get_time()
-                if current_time_ms >= 0:
-                    position = current_time_ms / self.file_duration
-                    progress_value = int(position * self.progress_bar.maximum())
-                    total_seconds = self.file_duration // 1000
-                    current_seconds = current_time_ms // 1000
-                    remaining_seconds = total_seconds - current_seconds
-                    self.progress_bar.setValue(progress_value)
-                    self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(current_seconds)}")
-                    self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(remaining_seconds)}")
-            except Exception as e:
-                self.logger.error(f"Error updating progress bar: {e}")
+        try:
+            info = self.mp3file.get_playback_info()
+        except Exception as e:
+            self.logger.error(f"Error getting playback info: {e}")
+            return
+        if info is not None:
+            self.progress_bar.setValue(int(info['position'] * self.progress_bar.maximum()))
+            self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(info['current_seconds'])}")
+            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(info['remaining_seconds'])}")
         else:
             self.progress_bar.setValue(0)
             self.lblElapsedTime.setText("Elapsed Time: 00:00")
-            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.file_duration/1000))}")
-        return
+            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.file_duration / 1000))}")
 
-    def generate_waveform_HS(self):
-        # Delegate waveform creation to waveform module (runs synchronously)
-        # Use high-speed streaming implementation
-        return wf.generate_waveform_HS(self.mp3file.file_name, self.file_duration)
+    def _set_progress_bar_background(self, waveform_image_path: str):
+        if self.progress_bar is None:
+            return
+        self.progress_bar.setStyleSheet(self._waveform_stylesheet(waveform_image_path))
 
-    def generate_waveform_rosa(self):
-        """Fast waveform for UI: return a quick low-res image immediately,
-        and (for large files) spawn a background thread to generate a high-res
-        waveform and update the progress bar when ready.
-        """
-        try:
-            fpath = self.mp3file.file_name
-            fsize = os.path.getsize(fpath)
-        except Exception:
-            fsize = 0
-
-        # thresholds (bytes)
-        LARGE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB
-
-        # If small file, generate full-res synchronously for best quality
-        if fsize <= LARGE_FILE_BYTES:
-            try:
-                return wf.generate_waveform_HS(fpath, self.file_duration, width=1500)
-            except Exception:
-                return wf.generate_waveform_rosa(fpath, self.file_duration)
-
-        # For large files: generate a quick low-res image and return it,
-        # then spawn background generation of high-res image.
-        try:
-            low_width = 600
-            low_path = wf.generate_waveform_HS(fpath, self.file_duration, width=low_width)
-        except Exception:
-            # fallback to librosa-based quick generation
-            low_path = wf.generate_waveform_rosa(fpath, self.file_duration)
-
-        # spawn background thread to create high-res and update stylesheet
-        def bg_task():
-            try:
-                high_path = wf.generate_waveform_HS(fpath, self.file_duration, width=1500)
-                # schedule UI update on main thread
-                QTimer.singleShot(0, lambda: self._set_progress_bar_background(high_path))
-            except Exception as e:
-                self.logger.debug(f"Background high-res waveform failed: {e}")
-
-        threading.Thread(target=bg_task, daemon=True).start()
-        return low_path
-
-    def _set_progress_bar_background(self, waveform_image_path):
-        # Build same stylesheet used in create_progress_bar and apply it
-        try:
-            style = f"""
-            QProgressBar {{
-                border: 1px solid grey;
-                background-color: transparent;
-                border-image: url({waveform_image_path}) 0 0 0 0 stretch stretch;
-                background-repeat: no-repeat;
-                background-position: left center;
-                text-align: center;
-            }}
-            QProgressBar::chunk {{
-                background-color: rgba(0,255,0,100);
-                width: 1px;
-            }}
-            """
-            if hasattr(self, 'progress_bar') and self.progress_bar is not None:
-                self.progress_bar.setStyleSheet(style)
-        except Exception:
-            pass
-
-    def create_progress_bar(self):
-        waveform_image_path = self.generate_waveform_HS() 
-        # waveform_image_path = self.generate_waveform_rosa()
-        progress_bar_style = f"""
+    @staticmethod
+    def _waveform_stylesheet(image_path: str) -> str:
+        return f"""
         QProgressBar {{
             border: 1px solid grey;
             background-color: transparent;
-            border-image: url({waveform_image_path}) 0 0 0 0 stretch stretch;
+            border-image: url({image_path}) 0 0 0 0 stretch stretch;
             background-repeat: no-repeat;
             background-position: left center;
             text-align: center;
@@ -413,9 +429,13 @@ class Mp3Widget(QWidget):
         }}
         """
 
+    def create_progress_bar(self):
+        waveform_image_path = self._waveform_service.generate(
+            self.mp3file.file_name, self.file_duration
+        )
         self.progress_bar = ClickableProgressBar()
         self.progress_bar.setFixedHeight(48)
-        self.progress_bar.setStyleSheet(progress_bar_style)
+        self.progress_bar.setStyleSheet(self._waveform_stylesheet(waveform_image_path))
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
         return self.progress_bar

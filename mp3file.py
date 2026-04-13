@@ -1,7 +1,6 @@
 import vlc
 import logging
-import time
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from fadecontroller import FadeController
 
 
@@ -34,14 +33,32 @@ class Mp3File(QObject):
         self.vlcState = self.player.get_state()
         return self.vlcState
 
+    def is_playing(self) -> bool:
+        return self.player.get_state() == vlc.State.Playing
+
+    def get_playback_info(self) -> dict | None:
+        """Return position data if playing or paused, else None.
+        Keeps VLC state logic out of the view layer.
+        """
+        state = self.player.get_state()
+        if state not in (vlc.State.Playing, vlc.State.Paused):
+            return None
+        current_time_ms = self.player.get_time()
+        if current_time_ms < 0:
+            return None
+        return {
+            'position': current_time_ms / self.mp3_total_duration,
+            'current_seconds': int(current_time_ms // 1000),
+            'remaining_seconds': int((self.mp3_total_duration - current_time_ms) // 1000),
+        }
+
     def play_pause(self):
         try:
-            if (self.get_state() == 3):  # playing
+            if self.is_playing():
                 self.player.pause()
             else:
                 self.player.play()
-                time.sleep(0.1)
-                self.set_volume(self.actual_volume)
+                QTimer.singleShot(100, lambda: self.set_volume(self.actual_volume))
         except Exception as e:
             self.logger.error(f"Play/Pause failed: {e}")
             raise
@@ -53,8 +70,19 @@ class Mp3File(QObject):
             self.logger.error(f"Stop failed: {e}")
             raise
 
+    def _stop_active_fade(self):
+        """Stop any running fade controller before starting a new one.
+        Prevents two controllers acting on volume simultaneously.
+        """
+        if self.fade_controller is not None:
+            self.fade_controller.stop()
+            self.fade_controller = None
+
     def fade_in(self, duration, end_volume):
         if not self.player.is_playing():
+            self._stop_active_fade()
+            # Set volume to 0 before play so there is no burst at the previous level
+            self.set_volume(0)
             self.player.play()
             self.fade_controller = FadeController(duration, 0, end_volume)
             self.fade_controller.update_volume.connect(self.set_volume)
@@ -62,6 +90,7 @@ class Mp3File(QObject):
             self.fade_controller.start()
 
     def fade_out(self, duration, start_volume, end_volume):
+        self._stop_active_fade()
         self.fade_controller = FadeController(duration, start_volume, end_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
         self.fade_controller.finished.connect(lambda: self.fadeOutFinished.emit())
@@ -69,8 +98,8 @@ class Mp3File(QObject):
         self.fade_controller.finished.connect(lambda: self.set_volume(start_volume))
         self.fade_controller.start()
 
-    def set_volume(self, volume):
-        self.actual_volume = volume
+    def set_volume(self, volume: int):
+        self.actual_volume = max(0, min(100, int(volume)))
         self.player.audio_set_volume(self.actual_volume)
         self.logger.debug(f"set_volume method: {self.actual_volume}, mp3file-get_volume: {self.get_volume()}")
 
