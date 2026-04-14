@@ -39,21 +39,6 @@ class GridManager:
 
 ---
 
-### 3. Unificare layout TOUCH/STANDARD in `apply_layout()`
-**File:** `mp3widget.py`, metodo `apply_layout()` righe ~285-345  
-TOUCH e STANDARD sono quasi identici (~30 righe ciascuno duplicato).
-La differenza reale è minima.
-
-**Fix proposto:** config data-driven:
-```python
-_LAYOUT_WIDGETS = {
-    WidgetLayout.COMPACT:  { 'btnRemove': (0,0,1,1), 'btnPlay': (0,5,1,1), ... },
-    WidgetLayout.TOUCH:    { 'btnRemove': (0,0,2,1), 'btnPlay': (0,5,2,1), ... },
-    WidgetLayout.STANDARD: { 'btnRemove': (0,0,2,1), 'btnPlay': (0,5,2,1), ... },
-}
-```
-
----
 
 ## Priorità BASSA
 
@@ -81,25 +66,6 @@ def _clear_cache(file_name: str):
     path = _waveform_cache_path(file_name)
     if os.path.exists(path):
         os.remove(path)
-```
-
----
-
-### 6. Messaggi di errore in batch nel `load_project()`
-**File:** `mainapp.py`, metodo `load_project()` righe ~285-310  
-Se N file non vengono trovati, appaiono N `QMessageBox` separati.
-
-**Fix proposto:** raccogliere gli errori e mostrare un solo dialog:
-```python
-failed = []
-for file_data in project_data['files']:
-    try: ...
-    except Exception as e:
-        failed.append(os.path.basename(file_data['file_path']))
-
-if failed:
-    QMessageBox.warning(self, "File non trovati",
-        f"{len(failed)} file non caricati:\n" + "\n".join(failed))
 ```
 
 ---
