@@ -124,13 +124,10 @@ class Mp3Widget(QWidget):
 
         self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
-        self.elapsed_time = 0
-        self.remaining_time = 0
         self.file_duration = self.mp3file.mp3_total_duration
         self.logger = logging.getLogger(__name__)
         self.widgetLayout = layout
         self.current_layout_name = self.widgetLayout.name
-        self.playerState = self.mp3file.get_state()
 
         self.drag_start_position = QPoint()
         self._waveform_service = WaveformService(self)
@@ -200,10 +197,10 @@ class Mp3Widget(QWidget):
         self.progress_bar = self.create_progress_bar()
         self.btnPlay = QPushButton("Play/Pause")
         self.btnPlay.setIcon(QIcon.fromTheme("media-playback-start"))
-        self.btnPlay.clicked.connect(self.w_play_pause)
+        self.btnPlay.clicked.connect(self.on_play_pause_clicked)
         self.btnFadeIn = QPushButton("FadeIn")
         self.btnFadeIn.setIcon(QIcon.fromTheme("go-up"))
-        self.btnFadeIn.clicked.connect(self.w_fade_in)
+        self.btnFadeIn.clicked.connect(self.on_fade_in_clicked)
         self.spinboxFadeTime = QDoubleSpinBox()
         self.spinboxFadeTime.setRange(0, 10)
         self.spinboxFadeTime.setValue(self.fade_time)
@@ -211,13 +208,13 @@ class Mp3Widget(QWidget):
         self.spinboxFadeTime.valueChanged.connect(self.update_fade_time)
         self.btnFadeOut = QPushButton("Fade Out")
         self.btnFadeOut.setIcon(QIcon.fromTheme("go-down"))
-        self.btnFadeOut.clicked.connect(self.w_fade_out)
+        self.btnFadeOut.clicked.connect(self.on_fade_out_clicked)
         self.btnStop = QPushButton("Stop")
-        self.btnStop.clicked.connect(self.w_stop)
+        self.btnStop.clicked.connect(self.on_stop_clicked)
         self.btnStop.setIcon(QIcon.fromTheme("media-playback-stop"))
         self.btnRemove = QPushButton("Remove")
         self.btnRemove.setIcon(QIcon.fromTheme("user-trash"))
-        self.btnRemove.clicked.connect(self.w_remove_file)
+        self.btnRemove.clicked.connect(self.on_remove_clicked)
         self.slidVolume = QSlider(Qt.Vertical)
         self.slidVolume.setMinimum(0)
         self.slidVolume.setMaximum(100)
@@ -347,18 +344,20 @@ class Mp3Widget(QWidget):
     def changeButtonStyle(self, btn, color):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")
 
-    def w_play_pause(self):
+    def on_play_pause_clicked(self):
         if self.mp3file.is_playing():
             self.changeButtonStyle(self.btnPlay, "red")
         else:
             self.changeButtonStyle(self.btnPlay, "green")
         self.mp3file.play_pause()
 
-    def w_stop(self):
+    def on_stop_clicked(self):
         self.changeButtonStyle(self.btnPlay, "")
+        self.changeButtonStyle(self.btnFadeIn, "")
+        self.changeButtonStyle(self.btnFadeOut, "")
         self.mp3file.stop()
 
-    def w_remove_file(self):
+    def on_remove_clicked(self):
         self._waveform_service.cancel()
         self.mp3file.cleanup()
         self.remove_requested.emit()
@@ -380,14 +379,17 @@ class Mp3Widget(QWidget):
     def update_fade_time(self):
         self.fade_time = self.spinboxFadeTime.value()
 
-    def w_fade_in(self):
+    def on_fade_in_clicked(self):
+        if self.mp3file.is_playing():
+            return
         self.changeButtonStyle(self.btnPlay, "green")
         self.changeButtonStyle(self.btnFadeIn, "green")
-        self.mp3file.fade_in(self.fade_time, self.mp3file.get_volume())
+        self.mp3file.fade_in(self.fade_time, self.slidVolume.value())
 
-    def w_fade_out(self):
+    def on_fade_out_clicked(self):
+        self.changeButtonStyle(self.btnFadeIn, "")  # reset if fade-in was interrupted
         self.changeButtonStyle(self.btnFadeOut, "green")
-        self.mp3file.fade_out(self.fade_time, self.mp3file.get_volume(), 0)
+        self.mp3file.fade_out(self.fade_time, self.slidVolume.value(), 0)
 
     def update_playback_position(self, new_position):
         self.mp3file.set_position(new_position)

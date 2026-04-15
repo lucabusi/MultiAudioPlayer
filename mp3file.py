@@ -2,6 +2,7 @@ import vlc
 import logging
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from fadecontroller import FadeController
+from waveform import clear_waveform_cache
 
 
 class Mp3File(QObject):
@@ -81,13 +82,15 @@ class Mp3File(QObject):
     def fade_in(self, duration, end_volume):
         if not self.player.is_playing():
             self._stop_active_fade()
-            # Set volume to 0 before play so there is no burst at the previous level
-            self.set_volume(0)
             self.player.play()
             self.fade_controller = FadeController(duration, 0, end_volume)
             self.fade_controller.update_volume.connect(self.set_volume)
             self.fade_controller.finished.connect(lambda: self.fadeInFinished.emit())
-            self.fade_controller.start()
+            # VLC resets audio volume when play() is called (same race as play_pause).
+            # Delay start by 100 ms so the audio output has settled, then force 0
+            # before the first FadeController tick to prevent a volume burst.
+            controller = self.fade_controller
+            QTimer.singleShot(100, lambda: controller is self.fade_controller and (self.set_volume(0), controller.start()))
 
     def fade_out(self, duration, start_volume, end_volume):
         self._stop_active_fade()
@@ -115,3 +118,4 @@ class Mp3File(QObject):
     def cleanup(self):
         self.stop()
         self.player.release()
+        clear_waveform_cache(self.file_name)

@@ -23,17 +23,33 @@ def _waveform_cache_path(file_name: str) -> str:
     return os.path.join(_WAVEFORM_CACHE_DIR, h + '.jpg')
 
 
+def clear_waveform_cache(file_name: str) -> None:
+    """Delete the cached waveform image for file_name, if it exists."""
+    path = _waveform_cache_path(file_name)
+    try:
+        os.remove(path)
+        logger.debug(f"Removed waveform cache: {path}")
+    except FileNotFoundError:
+        pass
+
+
+def _setup_matplotlib_figure():
+    plt.style.use('fast')
+    plt.rcParams['agg.path.chunksize'] = 10000
+    plt.figure(figsize=(10, 0.5), dpi=150)
+    plt.box(False)
+    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+    plt.margins(0, 0)
+    plt.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
+
+
 def generate_waveform(file_name, file_duration):
     """Generate a waveform image using matplotlib (legacy function).
     Returns the path to the generated JPEG file.
     """
     target_sr = 11025
     audio, _ = librosa.load(file_name, sr=target_sr, mono=True)
-    plt.figure(figsize=(10, 0.5))
-    plt.box(False)
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-    plt.margins(0, 0)
-    plt.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
+    _setup_matplotlib_figure()
     plt.plot(np.linspace(0, file_duration, len(audio)), audio, color='b', linewidth=0.1)
     plt.ylim(-1, 1)
 
@@ -76,14 +92,7 @@ def generate_waveform_rosa(file_name, file_duration):
         logger.error(f"Error loading audio file {file_name}: {e}")
         raise
 
-    plt.style.use('fast')
-    plt.rcParams['agg.path.chunksize'] = 10000
-    plt.figure(figsize=(10, 0.5), dpi=150)
-    plt.box(False)
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-    plt.margins(0, 0)
-    plt.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
-
+    _setup_matplotlib_figure()
     librosa.display.waveshow(audio, sr=target_sr, axis=None, color='b', linewidth=0.1)
     plt.ylim(-1, 1)
 
