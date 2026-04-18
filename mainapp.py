@@ -86,6 +86,11 @@ class MainApp(QMainWindow):
 
         self.initial_rows = 5
         self.initial_cols = 2
+        self.backend = 'mpv'
+
+#       self.backend = 'vlc'        # default
+#       self.backend = 'gstreamer'
+#       self.backend = 'mpv'
 
         self.init_ui()
 
@@ -190,7 +195,7 @@ class MainApp(QMainWindow):
                     QMessageBox.warning(self, "Grid Full", "The layout grid is full. Cannot add more files.")
                     break
 
-                mp3_audio_file = Mp3File(file_name)
+                mp3_audio_file = Mp3File(file_name, backend=self.backend)
                 mp3_widget = Mp3Widget(mp3_audio_file)
                 mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
 
@@ -231,7 +236,7 @@ class MainApp(QMainWindow):
                         if not os.path.exists(file_data['file_path']):
                             raise FileNotFoundError(f"File not found: {file_data['file_path']}")
 
-                        mp3_audio_file = Mp3File(file_data['file_path'])
+                        mp3_audio_file = Mp3File(file_data['file_path'], backend=self.backend)
                         layout = WidgetLayout[file_data.get('layout', 'TOUCH')]
                         mp3_widget = Mp3Widget(mp3_audio_file, layout=layout)
                         mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
