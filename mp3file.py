@@ -8,6 +8,8 @@ from waveform import clear_waveform_cache
 class Mp3File(QObject):
     fadeInFinished = pyqtSignal()
     fadeOutFinished = pyqtSignal()
+    playback_state_changed = pyqtSignal(str)  # 'playing', 'paused', 'stopped'
+    fade_in_started = pyqtSignal()
 
     def __init__(self, file_name):
         super().__init__()
@@ -57,9 +59,11 @@ class Mp3File(QObject):
         try:
             if self.is_playing():
                 self.player.pause()
+                self.playback_state_changed.emit('paused')
             else:
                 self.player.play()
                 QTimer.singleShot(100, lambda: self.set_volume(self.actual_volume))
+                self.playback_state_changed.emit('playing')
         except Exception as e:
             self.logger.error(f"Play/Pause failed: {e}")
             raise
@@ -67,6 +71,7 @@ class Mp3File(QObject):
     def stop(self):
         try:
             self.player.stop()
+            self.playback_state_changed.emit('stopped')
         except Exception as e:
             self.logger.error(f"Stop failed: {e}")
             raise
@@ -83,6 +88,8 @@ class Mp3File(QObject):
         if not self.player.is_playing():
             self._stop_active_fade()
             self.player.play()
+            self.fade_in_started.emit()
+            self.playback_state_changed.emit('playing')
             self.fade_controller = FadeController(duration, 0, end_volume)
             self.fade_controller.update_volume.connect(self.set_volume)
             self.fade_controller.finished.connect(lambda: self.fadeInFinished.emit())

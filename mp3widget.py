@@ -118,9 +118,9 @@ class Mp3Widget(QWidget):
     def __init__(self, mp3_audio_file: Mp3File, layout: WidgetLayout = WidgetLayout.TOUCH):
         super().__init__()
         self.mp3file = mp3_audio_file
-        self.mp3file.fadeInFinished.connect(lambda: self.changeButtonStyle(self.btnFadeIn, ""))
-        self.mp3file.fadeOutFinished.connect(lambda: self.changeButtonStyle(self.btnFadeOut, ""))
-        self.mp3file.fadeOutFinished.connect(lambda: self.changeButtonStyle(self.btnPlay, ""))
+        self.mp3file.playback_state_changed.connect(self._on_playback_state_changed)
+        self.mp3file.fade_in_started.connect(self._on_fade_in_started)
+        self.mp3file.fadeInFinished.connect(self._on_fade_in_finished)
 
         self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
@@ -344,17 +344,26 @@ class Mp3Widget(QWidget):
     def changeButtonStyle(self, btn, color):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")
 
-    def on_play_pause_clicked(self):
-        if self.mp3file.is_playing():
-            self.changeButtonStyle(self.btnPlay, "red")
-        else:
+    def _on_playback_state_changed(self, state: str):
+        if state == 'playing':
             self.changeButtonStyle(self.btnPlay, "green")
+        elif state == 'paused':
+            self.changeButtonStyle(self.btnPlay, "red")
+        elif state == 'stopped':
+            self.changeButtonStyle(self.btnPlay, "")
+            self.changeButtonStyle(self.btnFadeIn, "")
+            self.changeButtonStyle(self.btnFadeOut, "")
+
+    def _on_fade_in_started(self):
+        self.changeButtonStyle(self.btnFadeIn, "green")
+
+    def _on_fade_in_finished(self):
+        self.changeButtonStyle(self.btnFadeIn, "")
+
+    def on_play_pause_clicked(self):
         self.mp3file.play_pause()
 
     def on_stop_clicked(self):
-        self.changeButtonStyle(self.btnPlay, "")
-        self.changeButtonStyle(self.btnFadeIn, "")
-        self.changeButtonStyle(self.btnFadeOut, "")
         self.mp3file.stop()
 
     def on_remove_clicked(self):
@@ -380,14 +389,10 @@ class Mp3Widget(QWidget):
         self.fade_time = self.spinboxFadeTime.value()
 
     def on_fade_in_clicked(self):
-        if self.mp3file.is_playing():
-            return
-        self.changeButtonStyle(self.btnPlay, "green")
-        self.changeButtonStyle(self.btnFadeIn, "green")
         self.mp3file.fade_in(self.fade_time, self.slidVolume.value())
 
     def on_fade_out_clicked(self):
-        self.changeButtonStyle(self.btnFadeIn, "")  # reset if fade-in was interrupted
+        self.changeButtonStyle(self.btnFadeIn, "")
         self.changeButtonStyle(self.btnFadeOut, "green")
         self.mp3file.fade_out(self.fade_time, self.slidVolume.value(), 0)
 

@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QGridLayout
 
+MAX_ROWS = 20
+
 
 class GridManager:
     def __init__(self, grid_layout: QGridLayout, initial_cols: int):
@@ -39,13 +41,11 @@ class GridManager:
 
     def find_next_available_cell(self) -> tuple[int, int]:
         num_cols = max(self._layout.columnCount(), self._initial_cols)
-        for r in range(self._layout.rowCount() + 1):
+        for r in range(MAX_ROWS):
             for c in range(num_cols):
                 if self._layout.itemAtPosition(r, c) is None:
                     return r, c
-        new_row = self._layout.rowCount()
-        self._layout.setRowStretch(new_row, 1)
-        return new_row, 0
+        return -1, -1
 
     def find_nearest_free_cell(self, start_row: int, start_col: int) -> tuple[int, int]:
         max_search_dist = max(self._layout.rowCount(), self._layout.columnCount()) * 2
@@ -60,5 +60,7 @@ class GridManager:
                         if self._layout.itemAtPosition(r, c) is None:
                             return r, c
         new_row = self._layout.rowCount()
+        if new_row >= MAX_ROWS:
+            return -1, -1
         self._layout.setRowStretch(new_row, 1)
         return new_row, 0
