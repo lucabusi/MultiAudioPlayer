@@ -5,8 +5,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGr
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QColor, QPen
 from mp3file import Mp3File
-from mp3widget import Mp3Widget
-from utils import WidgetLayout
+from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
 
