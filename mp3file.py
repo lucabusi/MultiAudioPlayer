@@ -2,7 +2,6 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
-from waveform import clear_waveform_cache
 
 
 class FadeController(QObject):
@@ -438,4 +437,3 @@ class Mp3File(QObject):
     def cleanup(self):
         self.stop()
         self._backend.release()
-        clear_waveform_cache(self.file_name)

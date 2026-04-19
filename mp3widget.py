@@ -3,7 +3,7 @@ import logging
 from enum import Enum
 from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData
-from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter
+from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
 from waveform_service import WaveformService
 
@@ -36,6 +36,25 @@ class ClickableProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
+        self._waveform: QPixmap | None = None
+
+    def set_waveform(self, pixmap: QPixmap):
+        self._waveform = pixmap
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        rect = self.rect()
+        if self._waveform is not None and not self._waveform.isNull():
+            painter.drawPixmap(rect, self._waveform)
+        else:
+            painter.fillRect(rect, QColor('#4A5662'))
+        if self.maximum() > 0 and self.value() > 0:
+            chunk_width = int(rect.width() * self.value() / self.maximum())
+            painter.fillRect(rect.x(), rect.y(), chunk_width, rect.height(), QColor(0, 255, 0, 100))
+        painter.setPen(QColor('grey'))
+        painter.drawRect(rect.adjusted(0, 0, -1, -1))
+        painter.end()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -349,35 +368,16 @@ class Mp3Widget(QWidget):
             self.lblElapsedTime.setText("Elapsed Time: 00:00")
             self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.file_duration / 1000))}")
 
-    def _set_progress_bar_background(self, waveform_image_path: str):
+    def _set_progress_bar_background(self, pixmap: QPixmap):
         if self.progress_bar is None:
             return
-        self.progress_bar.setStyleSheet(self._waveform_stylesheet(waveform_image_path))
-
-    @staticmethod
-    def _waveform_stylesheet(image_path: str) -> str:
-        return f"""
-        QProgressBar {{
-            border: 1px solid grey;
-            background-color: transparent;
-            border-image: url({image_path}) 0 0 0 0 stretch stretch;
-            background-repeat: no-repeat;
-            background-position: left center;
-            text-align: center;
-        }}
-        QProgressBar::chunk {{
-            background-color: rgba(0,255,0,100);
-            width: 1px;
-        }}
-        """
+        self.progress_bar.set_waveform(pixmap)
 
     def create_progress_bar(self):
-        waveform_image_path = self._waveform_service.generate(
-            self.mp3file.file_name, self.file_duration
-        )
         self.progress_bar = ClickableProgressBar()
         self.progress_bar.setFixedHeight(48)
-        self.progress_bar.setStyleSheet(self._waveform_stylesheet(waveform_image_path))
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
+        pixmap = self._waveform_service.generate(self.mp3file.file_name, self.file_duration)
+        self.progress_bar.set_waveform(pixmap)
         return self.progress_bar

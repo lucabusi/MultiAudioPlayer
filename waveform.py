@@ -1,3 +1,4 @@
+import io
 import os
 import hashlib
 import logging
@@ -181,3 +182,70 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
     img = Image.fromarray(canvas)
     img.save(mp3WaveformImagePath, 'JPEG')
     return mp3WaveformImagePath
+
+
+def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025) -> bytes:
+    """Same as generate_waveform_HS but returns JPEG image data as bytes (no file I/O)."""
+    try:
+        with sf.SoundFile(file_name) as f:
+            total_frames = len(f)
+            frames_per_bin = max(1, int(np.ceil(total_frames / float(width))))
+
+            min_vals = np.full(width, np.inf, dtype=np.float32)
+            max_vals = np.full(width, -np.inf, dtype=np.float32)
+
+            blocksize = 65536
+            frame_idx = 0
+            while True:
+                block = f.read(blocksize, dtype='float32')
+                if block is None or len(block) == 0:
+                    break
+                if block.ndim > 1:
+                    block = block.mean(axis=1)
+
+                start = frame_idx
+                end = frame_idx + len(block)
+                bins = ((np.arange(start, end) // frames_per_bin)).astype(np.int32)
+                bins[bins >= width] = width - 1
+
+                for b in np.unique(bins):
+                    mask = (bins == b)
+                    seg = block[mask]
+                    if seg.size:
+                        mn = seg.min()
+                        mx = seg.max()
+                        if mn < min_vals[b]:
+                            min_vals[b] = mn
+                        if mx > max_vals[b]:
+                            max_vals[b] = mx
+                frame_idx = end
+
+    except Exception as e:
+        logger.error(f"Error computing envelope for {file_name}: {e}")
+        samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
+        step = max(1, len(samples) // width)
+        samples = samples[: step * width]
+        samples = samples.reshape(-1, step)
+        min_vals = samples.min(axis=1)
+        max_vals = samples.max(axis=1)
+
+    min_vals[np.isinf(min_vals)] = 0.0
+    max_vals[np.isneginf(max_vals)] = 0.0
+
+    canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
+    center = height // 2
+    ys1 = np.clip((center + (min_vals * center)).astype(np.int32), 0, height - 1)
+    ys2 = np.clip((center + (max_vals * center)).astype(np.int32), 0, height - 1)
+
+    blue = np.array([0, 0, 255], dtype=np.uint8)
+    for x in range(width):
+        y1, y2 = ys1[x], ys2[x]
+        if y1 <= y2:
+            canvas[y1:y2 + 1, x] = blue
+        else:
+            canvas[y2:y1 + 1, x] = blue
+
+    buf = io.BytesIO()
+    Image.fromarray(canvas).save(buf, 'JPEG')
+    buf.seek(0)
+    return buf.read()
