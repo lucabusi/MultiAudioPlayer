@@ -29,7 +29,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
   Per file vicini alla soglia 2MB è percepibile. Valutare esecuzione in background
   con stato "loading" nella progress bar.
 
-
 ---
 
 ## 🟡 Qualità e manutenibilità
