@@ -2,7 +2,7 @@ import os
 import logging
 from enum import Enum
 from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QMimeData
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
 from waveform_service import WaveformService
@@ -90,9 +90,9 @@ class Mp3Widget(QWidget):
         self.create_ui_elements()
         self.apply_layout()
 
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_progress_bar)
-        self.timer.start(50)
+        self._progress_error_count = 0
+        self._MAX_PROGRESS_ERRORS = 10
+        self._polling_disabled = False
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.defaultBtnStyle = "border: 1px solid; border-radius: 5px;"
@@ -117,15 +117,15 @@ class Mp3Widget(QWidget):
         pixmap = QPixmap(self.size())
         self.render(pixmap)
         pixmap.setDevicePixelRatio(self.devicePixelRatioF())
-        painter = QPixmap(pixmap.size())
-        painter.setDevicePixelRatio(self.devicePixelRatioF())
-        painter.fill(Qt.transparent)
-        p = QPainter(painter)
+        drag_pixmap = QPixmap(pixmap.size())
+        drag_pixmap.setDevicePixelRatio(self.devicePixelRatioF())
+        drag_pixmap.fill(Qt.transparent)
+        p = QPainter(drag_pixmap)
         p.setOpacity(0.7)
         p.drawPixmap(0, 0, pixmap)
         p.end()
 
-        drag.setPixmap(painter)
+        drag.setPixmap(drag_pixmap)
         drag.setHotSpot(event.pos())
         drag.exec_(Qt.MoveAction)
 
@@ -321,6 +321,7 @@ class Mp3Widget(QWidget):
         self.mp3file.stop()
 
     def on_remove_clicked(self):
+        self._waveform_service.waveform_upgraded.disconnect(self._set_progress_bar_background)
         self._waveform_service.cancel()
         self.mp3file.cleanup()
         self.remove_requested.emit()
@@ -354,11 +355,20 @@ class Mp3Widget(QWidget):
         self.mp3file.set_position(new_position)
 
     def update_progress_bar(self):
+        if self._polling_disabled:
+            return
         try:
             info = self.mp3file.get_playback_info()
         except Exception as e:
+            self._progress_error_count += 1
             self.logger.error(f"Error getting playback info: {e}")
+            if self._progress_error_count >= self._MAX_PROGRESS_ERRORS:
+                self.logger.error(
+                    f"Polling disabilitato dopo {self._MAX_PROGRESS_ERRORS} errori consecutivi in update_progress_bar."
+                )
+                self._polling_disabled = True
             return
+        self._progress_error_count = 0
         if info is not None:
             self.progress_bar.setValue(int(info['position'] * self.progress_bar.maximum()))
             self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(info['current_seconds'])}")

@@ -104,7 +104,7 @@ def generate_waveform_rosa(file_name, file_duration):
     return mp3WaveformImagePath
 
 
-def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target_sr=11025, cache=True):
+def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target_sr=11025):
     """High-speed waveform generation using streaming envelope computation.
     Reads audio in blocks (no full-file load), computes per-pixel min/max envelope
     and renders with Pillow. Returns path to JPEG file.

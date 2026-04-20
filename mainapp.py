@@ -2,7 +2,7 @@ import sys
 import os
 import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QColor, QPen
 from mp3file import Mp3File
 from mp3widget import Mp3Widget, WidgetLayout
@@ -85,13 +85,21 @@ class MainApp(QMainWindow):
 
         self.initial_rows = 5
         self.initial_cols = 2
-        self.backend = 'mpv'
+        self.backend = 'vlc'
 
 #       self.backend = 'vlc'        # default
 #       self.backend = 'gstreamer'
 #       self.backend = 'mpv'
 
         self.init_ui()
+
+        self._progress_timer = QTimer(self)
+        self._progress_timer.timeout.connect(self._tick_progress)
+        self._progress_timer.start(50)
+
+    def _tick_progress(self):
+        for widget in self.mp3_widgets:
+            widget.update_progress_bar()
 
     def init_ui(self):
         self.setWindowTitle('MultiPlayer Eden Edition')
@@ -278,6 +286,25 @@ class MainApp(QMainWindow):
             widget.deleteLater()
         self.mp3_widgets.clear()
         self.grid_manager.update_column_stretches()
+
+    def closeEvent(self, event):
+        if self.mp3_widgets:
+            reply = QMessageBox.question(
+                self,
+                "Chiudi applicazione",
+                "Ci sono file attivi. Vuoi salvare il progetto prima di uscire?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Save,
+            )
+            if reply == QMessageBox.Save:
+                self.save_project()
+                event.accept()
+            elif reply == QMessageBox.Discard:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
 
     def remove_widget(self, widget):
         if widget in self.mp3_widgets:

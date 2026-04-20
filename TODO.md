@@ -10,8 +10,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
   Il fallback per file grandi chiama `_bytes_to_pixmap(str)` → crash silenzioso o eccezione.
   Fix: sostituire con `generate_waveform_mem`.
 
-- **`mp3widget.py:101`** — variabile `painter` è in realtà un `QPixmap`, non un `QPainter`.
-  Nome fuorviante: rinominare in `drag_pixmap` o simile.
 
 - **`mp3file.py` — `fade_in` con lambda fragile**
   La guardia `controller is self.fade_controller and (self.set_volume(0), controller.start())`
@@ -25,18 +23,12 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
   `_MpvBackend.__init__` ha un busy-wait fino a 5s. `_GStreamerBackend` usa
   `get_state(CLOCK_TIME_NONE)` (attesa infinita). Il caricamento file va spostato in thread.
 
-- **`mp3file.py:289` — `available_backends()` hardcoded**
-  Restituisce `['vlc', 'gstreamer', 'mpv']` invece di derivare da `_BACKENDS.keys()`.
-  Fix: `return list(_BACKENDS.keys())`.
 
 - **`waveform_service.py` — `generate()` blocca il main thread**
   La generazione sincrona in `create_progress_bar()` blocca la UI.
   Per file vicini alla soglia 2MB è percepibile. Valutare esecuzione in background
   con stato "loading" nella progress bar.
 
-- **`mp3widget.py` — segnali non disconnessi prima di `deleteLater()`**
-  `waveform_upgraded` può essere già in coda nell'event loop quando il widget viene rimosso.
-  Fix: aggiungere `self._waveform_service.waveform_upgraded.disconnect(...)` in `on_remove_clicked`.
 
 ---
 
@@ -49,27 +41,18 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
   I widget tolti dal layout restano visibili finché non vengono riposizionati (`pass` nel loop).
   Aggiungere `widget.hide()` / `widget.show()` espliciti.
 
-- **`waveform.py:106` — parametro `cache=True` inutilizzato in `generate_waveform_HS`**
-  Il parametro non viene mai letto nel corpo della funzione. Rimuoverlo.
 
 - **`waveform.py` — bottleneck nel loop di envelope**
   Il loop `for b in np.unique(bins)` è O(width) iterazioni Python per blocco audio.
   Sostituire con `np.minimum.at` / `np.maximum.at` per un'operazione numpy vettorizzata
   (potenziale speedup 5-10x).
 
-- **`mainapp.py` — nessun `closeEvent`**
-  Chiudere la finestra con file attivi non chiede di salvare il progetto corrente.
-  Implementare `closeEvent` con dialog di conferma.
-
-- **`mp3widget.py` — `update_progress_bar` cattura tutte le eccezioni senza limite**
-  Con polling a 50ms, un errore sistematico produce migliaia di log/secondo.
-  Aggiungere un contatore: disabilitare il timer dopo N errori consecutivi.
 
 ---
 
 ## 🔵 Suggerimenti architetturali
 
-- **Timer globale invece di un timer per widget**
+implementato, da testare: - **Timer globale invece di un timer per widget**
   Ogni `Mp3Widget` ha il proprio `QTimer` a 50ms. Con molti widget attivi il numero
   di tick/secondo cresce linearmente. Un singolo timer condiviso in `MainApp` è più efficiente.
 

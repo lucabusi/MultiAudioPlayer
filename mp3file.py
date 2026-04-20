@@ -316,7 +316,7 @@ _BACKENDS = {
 
 def available_backends() -> list[str]:
     """Return the canonical name of each registered backend."""
-    return ['vlc', 'gstreamer', 'mpv']
+    return list(_BACKENDS.keys())
 
 
 # ---------------------------------------------------------------------------
