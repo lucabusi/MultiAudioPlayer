@@ -105,62 +105,18 @@ def generate_waveform_rosa(file_name, file_duration):
 
 
 def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target_sr=11025):
-    """High-speed waveform generation using streaming envelope computation.
-    Reads audio in blocks (no full-file load), computes per-pixel min/max envelope
-    and renders with Pillow. Returns path to JPEG file.
-    This version does NOT create or read any .npy cache files.
+    """Waveform generation: full-load envelope computation with soundfile + numpy reshape.
+    Returns path to JPEG file.
     """
     mp3WaveformImagePath = _waveform_cache_path(file_name)
 
-    # streaming read to compute envelope per output pixel column
-    try:
-        with sf.SoundFile(file_name) as f:
-            total_frames = len(f)
-            frames_per_bin = max(1, int(np.ceil(total_frames / float(width))))
-
-            min_vals = np.full(width, np.inf, dtype=np.float32)
-            max_vals = np.full(width, -np.inf, dtype=np.float32)
-
-            blocksize = 65536
-            frame_idx = 0
-            while True:
-                block = f.read(blocksize, dtype='float32')
-                if block is None or len(block) == 0:
-                    break
-                if block.ndim > 1:
-                    block = block.mean(axis=1)
-
-                start = frame_idx
-                end = frame_idx + len(block)
-                bins = ((np.arange(start, end) // frames_per_bin)).astype(np.int32)
-                bins[bins >= width] = width - 1
-
-                # aggregate per-bin min/max for this block
-                for b in np.unique(bins):
-                    mask = (bins == b)
-                    seg = block[mask]
-                    if seg.size:
-                        mn = seg.min()
-                        mx = seg.max()
-                        if mn < min_vals[b]:
-                            min_vals[b] = mn
-                        if mx > max_vals[b]:
-                            max_vals[b] = mx
-                frame_idx = end
-
-    except Exception as e:
-        logger.error(f"Error computing envelope for {file_name}: {e}")
-        # fallback to librosa full load
-        samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
-        step = max(1, len(samples) // width)
-        samples = samples[: step * width]
-        samples = samples.reshape(-1, step)
-        min_vals = samples.min(axis=1)
-        max_vals = samples.max(axis=1)
-
-    # fill empty bins
-    min_vals[np.isinf(min_vals)] = 0.0
-    max_vals[np.isneginf(max_vals)] = 0.0
+    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+    if samples.ndim > 1:
+        samples = samples.mean(axis=1)
+    step = max(1, len(samples) // width)
+    samples = samples[: step * width].reshape(-1, step)
+    min_vals = samples.min(axis=1)
+    max_vals = samples.max(axis=1)
 
     # Draw using a numpy canvas then convert to Pillow image (faster than many draw calls)
     canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
@@ -186,51 +142,13 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
 
 def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025) -> bytes:
     """Same as generate_waveform_HS but returns JPEG image data as bytes (no file I/O)."""
-    try:
-        with sf.SoundFile(file_name) as f:
-            total_frames = len(f)
-            frames_per_bin = max(1, int(np.ceil(total_frames / float(width))))
-
-            min_vals = np.full(width, np.inf, dtype=np.float32)
-            max_vals = np.full(width, -np.inf, dtype=np.float32)
-
-            blocksize = 65536
-            frame_idx = 0
-            while True:
-                block = f.read(blocksize, dtype='float32')
-                if block is None or len(block) == 0:
-                    break
-                if block.ndim > 1:
-                    block = block.mean(axis=1)
-
-                start = frame_idx
-                end = frame_idx + len(block)
-                bins = ((np.arange(start, end) // frames_per_bin)).astype(np.int32)
-                bins[bins >= width] = width - 1
-
-                for b in np.unique(bins):
-                    mask = (bins == b)
-                    seg = block[mask]
-                    if seg.size:
-                        mn = seg.min()
-                        mx = seg.max()
-                        if mn < min_vals[b]:
-                            min_vals[b] = mn
-                        if mx > max_vals[b]:
-                            max_vals[b] = mx
-                frame_idx = end
-
-    except Exception as e:
-        logger.error(f"Error computing envelope for {file_name}: {e}")
-        samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
-        step = max(1, len(samples) // width)
-        samples = samples[: step * width]
-        samples = samples.reshape(-1, step)
-        min_vals = samples.min(axis=1)
-        max_vals = samples.max(axis=1)
-
-    min_vals[np.isinf(min_vals)] = 0.0
-    max_vals[np.isneginf(max_vals)] = 0.0
+    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+    if samples.ndim > 1:
+        samples = samples.mean(axis=1)
+    step = max(1, len(samples) // width)
+    samples = samples[: step * width].reshape(-1, step)
+    min_vals = samples.min(axis=1)
+    max_vals = samples.max(axis=1)
 
     canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
     center = height // 2

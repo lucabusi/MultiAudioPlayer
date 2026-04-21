@@ -57,7 +57,9 @@ class WaveformService(QObject):
         try:
             initial_data = wf.generate_waveform_mem(file_path, duration, width=600)
         except Exception:
-            initial_data = wf.generate_waveform_rosa(file_path, duration)
+            rosa_path = wf.generate_waveform_rosa(file_path, duration)
+            with open(rosa_path, 'rb') as f:
+                initial_data = f.read()
 
         self._start_highres_thread(file_path, duration)
         return _bytes_to_pixmap(initial_data)

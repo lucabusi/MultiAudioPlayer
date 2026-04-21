@@ -6,10 +6,11 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
 
 ## 🔴 Bug critici
 
-- **`waveform_service.py:53`** — `generate_waveform_rosa` restituisce un path `str`, non `bytes`.
-  Il fallback per file grandi chiama `_bytes_to_pixmap(str)` → crash silenzioso o eccezione.
-  Fix: sostituire con `generate_waveform_mem`.
-
+- **`waveform.py` — fallback librosa non funzionante con NumPy 2.x**
+  `soxr` (dipendenza di librosa) è compilato per NumPy 1.x e crasha con `ImportError`
+  su NumPy ≥ 2.0. Il fallback in `waveform_service.py` (except di `generate_waveform_mem`)
+  non è mai eseguibile. Fix: aggiornare `soxr` / `librosa` oppure rimuovere la dipendenza
+  da librosa sostituendo il fallback con un altro backend (es. `pydub`).
 
 - **`mp3file.py` — `fade_in` con lambda fragile**
   La guardia `controller is self.fade_controller and (self.set_volume(0), controller.start())`
@@ -40,11 +41,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
   I widget tolti dal layout restano visibili finché non vengono riposizionati (`pass` nel loop).
   Aggiungere `widget.hide()` / `widget.show()` espliciti.
 
-
-- **`waveform.py` — bottleneck nel loop di envelope**
-  Il loop `for b in np.unique(bins)` è O(width) iterazioni Python per blocco audio.
-  Sostituire con `np.minimum.at` / `np.maximum.at` per un'operazione numpy vettorizzata
-  (potenziale speedup 5-10x).
 
 
 ---
