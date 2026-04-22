@@ -6,12 +6,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
 
 ## 🔴 Bug critici
 
-- **`waveform.py` — fallback librosa non funzionante con NumPy 2.x**
-  `soxr` (dipendenza di librosa) è compilato per NumPy 1.x e crasha con `ImportError`
-  su NumPy ≥ 2.0. Il fallback in `waveform_service.py` (except di `generate_waveform_mem`)
-  non è mai eseguibile. Fix: aggiornare `soxr` / `librosa` oppure rimuovere la dipendenza
-  da librosa sostituendo il fallback con un altro backend (es. `pydub`).
-
 - **`mp3file.py` — `fade_in` con lambda fragile**
   La guardia `controller is self.fade_controller and (self.set_volume(0), controller.start())`
   è difficile da leggere e potenzialmente errata. Refactoring in metodo esplicito.
@@ -19,10 +13,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-19.
 ---
 
 ## 🟠 Problemi di robustezza
-
-- **`mp3file.py` — backend bloccanti nel main thread**
-  `_MpvBackend.__init__` ha un busy-wait fino a 5s. `_GStreamerBackend` usa
-  `get_state(CLOCK_TIME_NONE)` (attesa infinita). Il caricamento file va spostato in thread.
 
 
 - **`waveform_service.py` — `generate()` blocca il main thread**

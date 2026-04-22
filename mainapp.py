@@ -121,6 +121,11 @@ class MainApp(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        tools_menu = menubar.addMenu("Strumenti")
+        normalize_all_action = QAction("Normalize All", self)
+        normalize_all_action.triggered.connect(self.normalize_all)
+        tools_menu.addAction(normalize_all_action)
+
         self.container_widget = _DropContainer(
             self._on_container_drag_enter,
             self._get_drop_target_rect,
@@ -249,6 +254,7 @@ class MainApp(QMainWindow):
                         mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
                         mp3_widget.set_volume(file_data['volume'])
                         mp3_widget.set_fade_time(file_data['fade_time'])
+                        mp3_widget.spinboxGain.setValue(file_data.get('gain', 1.0))
 
                         row = file_data.get('row', -1)
                         col = file_data.get('col', -1)
@@ -278,6 +284,11 @@ class MainApp(QMainWindow):
             except Exception as e:
                 self.logger.error(f"Error loading project data: {e}")
                 QMessageBox.critical(self, "Error", f"Failed to load project: {str(e)}")
+
+    def normalize_all(self):
+        """Avvia la normalizzazione RMS su tutti i widget aperti in parallelo."""
+        for widget in self.mp3_widgets:
+            widget.on_normalize_clicked()
 
     def clear_layout(self):
         for widget in self.mp3_widgets:

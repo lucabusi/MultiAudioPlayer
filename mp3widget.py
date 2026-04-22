@@ -75,6 +75,7 @@ class Mp3Widget(QWidget):
         self.mp3file.playback_state_changed.connect(self._on_playback_state_changed)
         self.mp3file.fade_in_started.connect(self._on_fade_in_started)
         self.mp3file.fadeInFinished.connect(self._on_fade_in_finished)
+        self.mp3file.normalize_ready.connect(self._on_normalize_ready)
 
         self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
@@ -169,6 +170,9 @@ class Mp3Widget(QWidget):
         self.btnRemove = QPushButton("Remove")
         self.btnRemove.setIcon(QIcon.fromTheme("user-trash"))
         self.btnRemove.clicked.connect(self.on_remove_clicked)
+        self.btnNorm = QPushButton("Norm")
+        self.btnNorm.setIcon(QIcon.fromTheme("audio-volume-high"))
+        self.btnNorm.clicked.connect(self.on_normalize_clicked)
         self.slidVolume = QSlider(Qt.Vertical)
         self.slidVolume.setMinimum(0)
         self.slidVolume.setMaximum(100)
@@ -176,6 +180,13 @@ class Mp3Widget(QWidget):
         self.slidVolume.valueChanged.connect(self.update_volume)
         self.lblVolume = QLabel("100")
         self.lblVolume.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.spinboxGain = QDoubleSpinBox()
+        self.spinboxGain.setRange(0.0, 5.0)
+        self.spinboxGain.setSingleStep(0.05)
+        self.spinboxGain.setDecimals(2)
+        self.spinboxGain.setValue(self.mp3file.gain)
+        self.spinboxGain.setPrefix("G:")
+        self.spinboxGain.valueChanged.connect(self._on_gain_changed)
         self.lblElapsedTime = QLabel("Elapsed time: 00:00")
         self.lblElapsedTime.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self.lblRemainingTime = QLabel(f"Remaining time: {seconds_to_min_sec(int(self.file_duration/1000))}")
@@ -256,10 +267,11 @@ class Mp3Widget(QWidget):
             for i in range(1, 10):
                 layout.setColumnStretch(i, 2)
 
-            for btn in [self.spinboxFadeTime, self.btnRemove, self.btnPlay, self.btnFadeIn, self.btnFadeOut, self.btnStop, self.btnChangeLayout, self.fade_preset_widget]:
+            for btn in [self.spinboxFadeTime, self.btnRemove, self.btnNorm, self.btnPlay, self.btnFadeIn, self.btnFadeOut, self.btnStop, self.btnChangeLayout, self.fade_preset_widget]:
                 btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
-            layout.addWidget(self.btnRemove, 0, 0, 2, 1)
+            layout.addWidget(self.btnRemove, 0, 0, 1, 1)
+            layout.addWidget(self.btnNorm, 1, 0, 1, 1)
             layout.addWidget(self.btnChangeLayout, 0, 1, 1, 1)
             layout.addWidget(self.filename_label, 0, 2, 1, 3)
             layout.addWidget(self.btnPlay, 0, 5, 2, 1)
@@ -270,6 +282,7 @@ class Mp3Widget(QWidget):
             layout.addWidget(self.btnStop, 0, 9, 2, 1)
             layout.addWidget(self.slidVolume, 0, 11, 4, 1)
             layout.addWidget(self.lblVolume, 0, 10)
+            layout.addWidget(self.spinboxGain, 1, 10)
             layout.addWidget(self.progress_bar, 2, 0, 2, 11)
             layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
             layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
@@ -342,6 +355,23 @@ class Mp3Widget(QWidget):
 
     def update_fade_time(self):
         self.fade_time = self.spinboxFadeTime.value()
+
+    def _on_gain_changed(self, value: float):
+        self.mp3file.set_gain(value)
+        self._waveform_service.refresh(value)
+        # Sincronizza lo slider con actual_volume ricalcolato da set_gain
+        self.slidVolume.blockSignals(True)
+        self.slidVolume.setValue(self.mp3file.actual_volume)
+        self.lblVolume.setText(str(self.mp3file.actual_volume))
+        self.slidVolume.blockSignals(False)
+
+    def on_normalize_clicked(self):
+        self.btnNorm.setEnabled(False)
+        self.mp3file.normalize()
+
+    def _on_normalize_ready(self, gain: float):
+        self.spinboxGain.setValue(gain)  # triggera _on_gain_changed
+        self.btnNorm.setEnabled(True)
 
     def on_fade_in_clicked(self):
         self.mp3file.fade_in(self.fade_time, self.slidVolume.value())

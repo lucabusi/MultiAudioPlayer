@@ -30,6 +30,7 @@ class ProjectManager:
                 'file_path': widget.mp3file.file_name,
                 'volume': widget.mp3file.get_volume(),
                 'fade_time': widget.fade_time,
+                'gain': widget.mp3file.gain,
                 'row': row,
                 'col': col,
                 'layout': widget.widgetLayout.name,

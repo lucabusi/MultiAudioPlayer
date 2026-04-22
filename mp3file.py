@@ -1,7 +1,35 @@
 import logging
+import numpy as np
+import soundfile as sf
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
+
+
+def compute_peak_gain(file_path: str) -> float:
+    """Calcola il gain necessario per portare il picco massimo del file a 1.0."""
+    samples, _ = sf.read(file_path, dtype='float32', always_2d=False)
+    if samples.ndim > 1:
+        samples = samples.mean(axis=1)
+    peak = float(np.max(np.abs(samples)))
+    if peak < 1e-9:
+        return 1.0
+    return 1.0 / peak
+
+
+class RmsAnalyzerThread(QThread):
+    analysis_done = pyqtSignal(float)
+
+    def __init__(self, file_path: str):
+        super().__init__()
+        self._file_path = file_path
+
+    def run(self):
+        try:
+            gain = compute_peak_gain(self._file_path)
+            self.analysis_done.emit(gain)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Peak analysis failed for {self._file_path}: {e}")
 
 
 class FadeController(QObject):
@@ -344,8 +372,9 @@ class Mp3File(QObject):
     fadeOutFinished = pyqtSignal()
     playback_state_changed = pyqtSignal(str)  # 'playing', 'paused', 'stopped'
     fade_in_started = pyqtSignal()
-    loaded = pyqtSignal()        # emesso quando il backend è pronto
-    load_error = pyqtSignal(str) # emesso in caso di errore durante il caricamento
+    loaded = pyqtSignal()
+    load_error = pyqtSignal(str)
+    normalize_ready = pyqtSignal(float)  # emesso con il gain calcolato
 
     def __init__(self, file_name: str, backend: str = 'vlc'):
         super().__init__()
@@ -355,6 +384,8 @@ class Mp3File(QObject):
         self._backend: _PlaybackBackend | None = None
         self.mp3_total_duration = 0
         self.actual_volume = 100
+        self.gain: float = 1.0
+        self._rms_thread: RmsAnalyzerThread | None = None
 
         backend_key = backend.lower()
         if backend_key not in _BACKENDS:
@@ -371,7 +402,7 @@ class Mp3File(QObject):
     def _on_backend_ready(self, backend: _PlaybackBackend):
         self._backend = backend
         self.mp3_total_duration = self._backend.get_duration_ms()
-        self._backend.set_volume(self.actual_volume)
+        self._backend.set_volume(self._effective_volume())
         self._loader = None
         self.loaded.emit()
 
@@ -463,11 +494,32 @@ class Mp3File(QObject):
         self.fade_controller.finished.connect(lambda: self.set_volume(start_volume))
         self.fade_controller.start()
 
+    def _effective_volume(self) -> int:
+        return max(0, min(100, int(self.actual_volume * self.gain)))
+
     def set_volume(self, volume: int):
         self.actual_volume = max(0, min(100, int(volume)))
         if self._backend is not None:
-            self._backend.set_volume(self.actual_volume)
-        self.logger.debug(f"set_volume: {self.actual_volume}")
+            self._backend.set_volume(self._effective_volume())
+        self.logger.debug(f"set_volume: {self.actual_volume}  gain: {self.gain:.3f}  effective: {self._effective_volume()}")
+
+    def set_gain(self, gain: float) -> None:
+        old_effective = self._effective_volume()
+        self.gain = max(1e-6, gain)
+        # Ricalcola actual_volume per mantenere il volume effettivo invariato dopo il cambio di gain
+        self.actual_volume = max(0, min(100, round(old_effective / self.gain)))
+        if self._backend is not None:
+            self._backend.set_volume(self._effective_volume())
+        self.logger.debug(f"set_gain: {self.gain:.3f}  actual: {self.actual_volume}  effective: {self._effective_volume()}")
+
+    def normalize(self) -> None:
+        """Avvia l'analisi peak in background; emette normalize_ready(gain) quando pronta."""
+        if self._rms_thread is not None and self._rms_thread.isRunning():
+            return
+        self._rms_thread = RmsAnalyzerThread(self.file_name)
+        self._rms_thread.analysis_done.connect(self.normalize_ready)
+        self._rms_thread.finished.connect(lambda: setattr(self, '_rms_thread', None))
+        self._rms_thread.start()
 
     def get_volume(self):
         return self.actual_volume

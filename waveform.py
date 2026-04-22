@@ -140,15 +140,15 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
     return mp3WaveformImagePath
 
 
-def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025) -> bytes:
+def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025, gain=1.0) -> bytes:
     """Same as generate_waveform_HS but returns JPEG image data as bytes (no file I/O)."""
     samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
     step = max(1, len(samples) // width)
     samples = samples[: step * width].reshape(-1, step)
-    min_vals = samples.min(axis=1)
-    max_vals = samples.max(axis=1)
+    min_vals = samples.min(axis=1) * gain
+    max_vals = samples.max(axis=1) * gain
 
     canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
     center = height // 2
