@@ -1,0 +1,52 @@
+{
+    "version": "1.2",
+    "saved_date": "2026-04-22 18:30:03",
+    "window_state": {
+        "x": 70,
+        "y": 124,
+        "width": 1823,
+        "height": 483
+    },
+    "grid_state": {
+        "rows": 5,
+        "cols": 2
+    },
+    "files": [
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/dtmf_Audacity_0.5.mp3",
+            "volume": 100,
+            "fade_time": 5,
+            "gain": 1.98,
+            "row": 0,
+            "col": 0,
+            "layout": "TOUCH"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/occhi_di_gatto.mp3",
+            "volume": 100,
+            "fade_time": 5,
+            "gain": 0.56,
+            "row": 0,
+            "col": 1,
+            "layout": "TOUCH"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/pink_panther.mp3",
+            "volume": 100,
+            "fade_time": 5,
+            "gain": 0.88,
+            "row": 1,
+            "col": 0,
+            "layout": "TOUCH"
+        },
+        {
+            "file_path": "/home/luca/Documents/nextcloud/Documents/mp3Player/audio_test/Santo-Poi.mp3",
+            "volume": 100,
+            "fade_time": 5,
+            "gain": 1.22,
+            "row": 1,
+            "col": 1,
+            "layout": "TOUCH"
+        }
+    ]
+}
