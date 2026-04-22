@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
 
 
 class FadeController(QObject):
@@ -305,6 +305,22 @@ class _MpvBackend(_PlaybackBackend):
 
 
 
+class _BackendLoader(QThread):
+    ready = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, cls, file_name: str):
+        super().__init__()
+        self._cls = cls
+        self._file_name = file_name
+
+    def run(self):
+        try:
+            self.ready.emit(self._cls(self._file_name))
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 _BACKENDS = {
     'vlc': _VlcBackend,
     'gstreamer': _GStreamerBackend,
@@ -328,12 +344,17 @@ class Mp3File(QObject):
     fadeOutFinished = pyqtSignal()
     playback_state_changed = pyqtSignal(str)  # 'playing', 'paused', 'stopped'
     fade_in_started = pyqtSignal()
+    loaded = pyqtSignal()        # emesso quando il backend è pronto
+    load_error = pyqtSignal(str) # emesso in caso di errore durante il caricamento
 
     def __init__(self, file_name: str, backend: str = 'vlc'):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         self.fade_controller = None
         self.file_name = file_name
+        self._backend: _PlaybackBackend | None = None
+        self.mp3_total_duration = 0
+        self.actual_volume = 100
 
         backend_key = backend.lower()
         if backend_key not in _BACKENDS:
@@ -342,23 +363,39 @@ class Mp3File(QObject):
                 f"Disponibili: {', '.join(available_backends())}"
             )
 
-        try:
-            self._backend: _PlaybackBackend = _BACKENDS[backend_key](file_name)
-        except Exception as e:
-            self.logger.error(f"Impossibile inizializzare il backend '{backend}': {e}")
-            raise
+        self._loader = _BackendLoader(_BACKENDS[backend_key], file_name)
+        self._loader.ready.connect(self._on_backend_ready)
+        self._loader.error.connect(self._on_backend_error)
+        self._loader.start()
 
+    def _on_backend_ready(self, backend: _PlaybackBackend):
+        self._backend = backend
         self.mp3_total_duration = self._backend.get_duration_ms()
-        self.actual_volume = 100
-        self.set_volume(100)
+        self._backend.set_volume(self.actual_volume)
+        self._loader = None
+        self.loaded.emit()
+
+    def _on_backend_error(self, message: str):
+        self.logger.error(f"Impossibile inizializzare il backend: {message}")
+        self._loader = None
+        self.load_error.emit(message)
+
+    def is_ready(self) -> bool:
+        return self._backend is not None
 
     def get_state(self) -> PlaybackState:
+        if self._backend is None:
+            return PlaybackState.STOPPED
         return self._backend.get_state()
 
     def is_playing(self) -> bool:
+        if self._backend is None:
+            return False
         return self._backend.is_playing()
 
     def get_playback_info(self) -> dict | None:
+        if self._backend is None:
+            return None
         state = self._backend.get_state()
         if state not in (PlaybackState.PLAYING, PlaybackState.PAUSED):
             return None
@@ -374,6 +411,8 @@ class Mp3File(QObject):
         }
 
     def play_pause(self):
+        if self._backend is None:
+            return
         try:
             if self.is_playing():
                 self._backend.pause()
@@ -387,6 +426,8 @@ class Mp3File(QObject):
             raise
 
     def stop(self):
+        if self._backend is None:
+            return
         try:
             self._backend.stop()
             self.playback_state_changed.emit('stopped')
@@ -400,6 +441,8 @@ class Mp3File(QObject):
             self.fade_controller = None
 
     def fade_in(self, duration, end_volume):
+        if self._backend is None:
+            return
         if not self._backend.is_playing():
             self._stop_active_fade()
             self._backend.play()
@@ -422,18 +465,27 @@ class Mp3File(QObject):
 
     def set_volume(self, volume: int):
         self.actual_volume = max(0, min(100, int(volume)))
-        self._backend.set_volume(self.actual_volume)
+        if self._backend is not None:
+            self._backend.set_volume(self.actual_volume)
         self.logger.debug(f"set_volume: {self.actual_volume}")
 
     def get_volume(self):
         return self.actual_volume
 
     def set_position(self, position):
-        self._backend.set_position(position)
+        if self._backend is not None:
+            self._backend.set_position(position)
 
     def get_position(self):
+        if self._backend is None:
+            return 0.0
         return self._backend.get_position()
 
     def cleanup(self):
-        self.stop()
-        self._backend.release()
+        if self._loader is not None:
+            self._loader.quit()
+            self._loader.wait()
+            self._loader = None
+        if self._backend is not None:
+            self.stop()
+            self._backend.release()

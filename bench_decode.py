@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 import miniaudio
+import librosa
 
 AUDIO_DIR  = Path(__file__).parent / "audio_test"
 BLOCK_SIZE = 262144   # frames per blocco in sf-stream (ottimale da benchmark precedente)
@@ -64,10 +65,23 @@ def decode_miniaudio(file_path: str) -> np.ndarray:
     return samples
 
 
+def decode_librosa_srNone(file_path: str) -> np.ndarray:
+    """librosa: carica e decodifica con resampling opzionale, output float32 mono."""
+    samples, _ = librosa.load(file_path, sr=None, mono=True, dtype=np.float32)
+    return samples
+
+def decode_librosa_sr11(file_path: str) -> np.ndarray:
+    """librosa: carica e decodifica con resampling opzionale, output float32 mono."""
+    samples, _ = librosa.load(file_path, sr=11025, mono=True, dtype=np.float32)
+    return samples
+
+
 DECODERS = [
     ("sf-fullload", decode_sf_fullload),
     ("sf-stream",   decode_sf_stream),
     ("miniaudio",   decode_miniaudio),
+    ("librosa_srNone", decode_librosa_srNone),
+    ("librosa_sr11", decode_librosa_sr11),
 ]
 
 
@@ -130,6 +144,7 @@ def main():
     print(f"Runs per file: {RUNS}  |  Block size sf-stream: {BLOCK_SIZE} frames")
     print(f"sf-fullload / sf-stream: decoder mpg123 (libsndfile)")
     print(f"miniaudio:               decoder dr_mp3  (C puro)")
+    print(f"librosa:                 audioread/soundfile backend, sr=None mono")
     print("=" * 85)
 
     all_rows  = []
