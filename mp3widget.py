@@ -583,6 +583,6 @@ class Mp3Widget(QWidget):
         self.progress_bar.setFixedHeight(PROGRESS_BAR_HEIGHT)
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
-        pixmap = self._waveform_service.generate(self.mp3file.file_name, self.file_duration)
+        pixmap = self._waveform_service.generate(self.mp3file.file_name)
         self.progress_bar.set_waveform(pixmap)
         return self.progress_bar

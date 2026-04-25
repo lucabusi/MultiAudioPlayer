@@ -1,12 +1,19 @@
 """
-Benchmark completo di tutti i metodi di generazione waveform presenti in waveform.py.
+Benchmark dei metodi di generazione waveform.
+
+Le 4 implementazioni "legacy" (mpl-plot, mpl-rosa, pil-librosa, sf-HS) vivono
+qui come funzioni private — usate solo per confronto storico nel benchmark,
+non in produzione. waveform.py espone solo `generate_waveform_mem` (pipeline
+runtime, soundfile-based) e `generate_waveform_librosa` (fallback per formati
+che soundfile non gestisce, audioread/ffmpeg-backed).
 
 Metodi testati:
-  generate_waveform          librosa + matplotlib (plt.plot)
-  generate_waveform_rosa     librosa + librosa.display.waveshow + matplotlib
-  generate_waveform_pillow   librosa + PIL ImageDraw (per-column draw loop)
-  generate_waveform_HS       soundfile full-load + numpy reshape + PIL canvas  → restituisce path
-  generate_waveform_mem      soundfile full-load + numpy reshape + PIL canvas  → restituisce bytes
+  _generate_waveform               librosa + matplotlib (plt.plot)         [legacy]
+  _generate_waveform_rosa          librosa + librosa.display.waveshow      [legacy]
+  _generate_waveform_pillow        librosa + PIL ImageDraw per-column      [legacy]
+  _generate_waveform_HS            soundfile + numpy + PIL → path          [legacy]
+  wf.generate_waveform_mem         soundfile + numpy + PIL → bytes         [produzione]
+  wf.generate_waveform_librosa     librosa.load (audioread/ffmpeg) → bytes [fallback]
 
 Uso:
     python bench_envelope.py
@@ -19,6 +26,10 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw
 
 import waveform as wf
 
@@ -50,14 +61,103 @@ def _run(fn, *args, runs: int = RUNS):
     return sum(times) / len(times), None
 
 
+# ── implementazioni legacy (solo per benchmark) ──────────────────────────────
+
+def _setup_matplotlib_figure():
+    """Helper matplotlib usato dalle implementazioni legacy plot/rosa."""
+    plt.style.use('fast')
+    plt.rcParams['agg.path.chunksize'] = 10000
+    plt.figure(figsize=(10, 0.5), dpi=150)
+    plt.box(False)
+    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+    plt.margins(0, 0)
+    plt.tick_params(left=False, right=False, labelleft=False,
+                    labelbottom=False, bottom=False)
+
+
+def _generate_waveform(file_name, file_duration):
+    """Legacy: matplotlib plt.plot del segnale completo."""
+    target_sr = 11025
+    audio, _ = librosa.load(file_name, sr=target_sr, mono=True)
+    _setup_matplotlib_figure()
+    plt.plot(np.linspace(0, file_duration, len(audio)), audio,
+             color='b', linewidth=0.1)
+    plt.ylim(-1, 1)
+    path = wf._waveform_cache_path(file_name)
+    plt.savefig(path, format='jpeg', dpi=150)
+    plt.close()
+    return path
+
+
+def _generate_waveform_rosa(file_name, file_duration):
+    """Legacy: librosa.display.waveshow + matplotlib (vecchio fallback)."""
+    target_sr = 11025
+    audio, _ = librosa.load(file_name, sr=target_sr, mono=True)
+    _setup_matplotlib_figure()
+    librosa.display.waveshow(audio, sr=target_sr, axis=None,
+                             color='b', linewidth=0.1)
+    plt.ylim(-1, 1)
+    path = wf._waveform_cache_path(file_name)
+    plt.savefig(path, format='jpeg', dpi=150)
+    plt.close()
+    return path
+
+
+def _generate_waveform_pillow(file_name, file_duration, width=1500,
+                              height=75, target_sr=11025):
+    """Legacy: librosa + PIL ImageDraw per-column draw loop."""
+    samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
+    step = max(1, len(samples) // width)
+    samples = samples[: step * width].reshape(-1, step)
+    min_vals = samples.min(axis=1)
+    max_vals = samples.max(axis=1)
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+    center = height // 2
+    for x, (min_val, max_val) in enumerate(zip(min_vals, max_vals)):
+        y1 = int(center + min_val * center)
+        y2 = int(center + max_val * center)
+        draw.line([(x, y1), (x, y2)], fill="blue")
+    path = wf._waveform_cache_path(file_name)
+    img.save(path, 'JPEG')
+    return path
+
+
+def _generate_waveform_HS(file_name, file_duration, width=1500,
+                          height=75, target_sr=11025):
+    """Legacy: soundfile + numpy reshape + PIL canvas, restituisce path."""
+    path = wf._waveform_cache_path(file_name)
+    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+    if samples.ndim > 1:
+        samples = samples.mean(axis=1)
+    step = max(1, len(samples) // width)
+    samples = samples[: step * width].reshape(-1, step)
+    min_vals = samples.min(axis=1)
+    max_vals = samples.max(axis=1)
+    canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
+    center = height // 2
+    ys1 = np.clip((center + min_vals * center).astype(np.int32), 0, height - 1)
+    ys2 = np.clip((center + max_vals * center).astype(np.int32), 0, height - 1)
+    blue = np.array([0, 0, 255], dtype=np.uint8)
+    for x in range(width):
+        y1, y2 = ys1[x], ys2[x]
+        if y1 <= y2:
+            canvas[y1:y2 + 1, x] = blue
+        else:
+            canvas[y2:y1 + 1, x] = blue
+    Image.fromarray(canvas).save(path, 'JPEG')
+    return path
+
+
 # ── definizione strategie ────────────────────────────────────────────────────
 
 STRATEGIES = [
-    ("mpl-plot",    "generate_waveform",        lambda p, d: wf.generate_waveform(p, d)),
-    ("mpl-rosa",    "generate_waveform_rosa",   lambda p, d: wf.generate_waveform_rosa(p, d)),
-    ("pil-librosa", "generate_waveform_pillow", lambda p, d: wf.generate_waveform_pillow(p, d)),
-    ("sf-HS",       "generate_waveform_HS",     lambda p, d: wf.generate_waveform_HS(p, d)),
-    ("sf-mem",      "generate_waveform_mem",    lambda p, d: wf.generate_waveform_mem(p, d)),
+    ("mpl-plot",    "_generate_waveform",            lambda p, d: _generate_waveform(p, d)),
+    ("mpl-rosa",    "_generate_waveform_rosa",       lambda p, d: _generate_waveform_rosa(p, d)),
+    ("pil-librosa", "_generate_waveform_pillow",     lambda p, d: _generate_waveform_pillow(p, d)),
+    ("sf-HS",       "_generate_waveform_HS",         lambda p, d: _generate_waveform_HS(p, d)),
+    ("sf-mem",      "wf.generate_waveform_mem",      lambda p, d: wf.generate_waveform_mem(p)),
+    ("lib-mem",     "wf.generate_waveform_librosa",  lambda p, d: wf.generate_waveform_librosa(p)),
 ]
 
 

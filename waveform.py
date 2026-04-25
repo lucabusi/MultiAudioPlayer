@@ -4,11 +4,8 @@ import hashlib
 import logging
 import tempfile
 import numpy as np
-import matplotlib.pyplot as plt
-import librosa
-import librosa.display
 import soundfile as sf
-from PIL import Image, ImageDraw
+from PIL import Image
 from __init__ import WAVEFORM_WIDTH
 
 logger = logging.getLogger(__name__)
@@ -36,126 +33,9 @@ def clear_waveform_cache(file_name: str, width: int = WAVEFORM_WIDTH) -> None:
         pass
 
 
-def _setup_matplotlib_figure():
-    plt.style.use('fast')
-    plt.rcParams['agg.path.chunksize'] = 10000
-    plt.figure(figsize=(10, 0.5), dpi=150)
-    plt.box(False)
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-    plt.margins(0, 0)
-    plt.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
-
-
-def generate_waveform(file_name, file_duration):
-    """Generate a waveform image using matplotlib (legacy function).
-    Returns the path to the generated JPEG file.
-    """
-    target_sr = 11025
-    audio, _ = librosa.load(file_name, sr=target_sr, mono=True)
-    _setup_matplotlib_figure()
-    plt.plot(np.linspace(0, file_duration, len(audio)), audio, color='b', linewidth=0.1)
-    plt.ylim(-1, 1)
-
-    mp3WaveformImagePath = _waveform_cache_path(file_name)
-    plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
-    logger.info(f"{file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Mean: {audio.mean()*1000:.8f}")
-    plt.close()
-    return mp3WaveformImagePath
-
-
-def generate_waveform_pillow(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025):
-    """Generate a waveform image using Pillow. Returns path to JPEG file."""
-    samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
-    step = max(1, len(samples) // width)
-    samples = samples[: step * width]
-    samples = samples.reshape(-1, step)
-    min_vals = samples.min(axis=1)
-    max_vals = samples.max(axis=1)
-
-    img = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(img)
-    center = height // 2
-
-    for x, (min_val, max_val) in enumerate(zip(min_vals, max_vals)):
-        y1 = int(center + min_val * center)
-        y2 = int(center + max_val * center)
-        draw.line([(x, y1), (x, y2)], fill="blue")
-
-    mp3WaveformImagePath = _waveform_cache_path(file_name)
-    img.save(mp3WaveformImagePath, 'JPEG')
-    return mp3WaveformImagePath
-
-
-def generate_waveform_rosa(file_name, file_duration):
-    """Generate waveform using librosa.display.waveshow and matplotlib."""
-    target_sr = 11025
-    try:
-        audio, _ = librosa.load(file_name, sr=target_sr, mono=True)
-    except Exception as e:
-        logger.error(f"Error loading audio file {file_name}: {e}")
-        raise
-
-    _setup_matplotlib_figure()
-    librosa.display.waveshow(audio, sr=target_sr, axis=None, color='b', linewidth=0.1)
-    plt.ylim(-1, 1)
-
-    mp3WaveformImagePath = _waveform_cache_path(file_name)
-    plt.savefig(mp3WaveformImagePath, format='jpeg', dpi=150)
-    logger.info(f"{file_name}: Max: {audio.max():.4f}, Min: {audio.min():.4f}, Mean: {audio.mean()*1000:.8f}")
-    plt.close()
-    return mp3WaveformImagePath
-
-
-def generate_waveform_HS(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025):
-    """Waveform generation: full-load envelope computation with soundfile + numpy reshape.
-    Returns path to JPEG file.
-    """
-    mp3WaveformImagePath = _waveform_cache_path(file_name)
-
-    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
-    if samples.ndim > 1:
-        samples = samples.mean(axis=1)
-    step = max(1, len(samples) // width)
-    samples = samples[: step * width].reshape(-1, step)
-    min_vals = samples.min(axis=1)
-    max_vals = samples.max(axis=1)
-
-    # Draw using a numpy canvas then convert to Pillow image (faster than many draw calls)
-    canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
-    center = height // 2
-    ys1 = (center + (min_vals * center)).astype(np.int32)
-    ys2 = (center + (max_vals * center)).astype(np.int32)
-    ys1 = np.clip(ys1, 0, height - 1)
-    ys2 = np.clip(ys2, 0, height - 1)
-
-    blue = np.array([0, 0, 255], dtype=np.uint8)
-    for x in range(width):
-        y1 = ys1[x]
-        y2 = ys2[x]
-        if y1 <= y2:
-            canvas[y1:y2 + 1, x] = blue
-        else:
-            canvas[y2:y1 + 1, x] = blue
-
-    img = Image.fromarray(canvas)
-    img.save(mp3WaveformImagePath, 'JPEG')
-    return mp3WaveformImagePath
-
-
-def generate_waveform_mem(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025, gain=1.0) -> bytes:
-    """Returns JPEG image data as bytes. Cached on disk when gain == 1.0;
-    gain-scaled waveforms are rendered fresh (gain is a runtime visual
-    transform, not worth caching per distinct value)."""
-    use_cache = abs(gain - 1.0) < 1e-6
-    cache = _waveform_cache_path(file_name, width) if use_cache else None
-    if cache is not None and os.path.isfile(cache):
-        try:
-            with open(cache, 'rb') as fh:
-                return fh.read()
-        except OSError:
-            pass
-
-    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+def _render_envelope_jpeg(samples, width: int, height: int, gain: float = 1.0) -> bytes:
+    """Compute min/max envelope per column from samples and render as JPEG bytes.
+    Shared core di tutte le funzioni `generate_waveform_*`."""
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
     step = max(1, len(samples) // width)
@@ -178,7 +58,33 @@ def generate_waveform_mem(file_name, file_duration, width=WAVEFORM_WIDTH, height
 
     buf = io.BytesIO()
     Image.fromarray(canvas).save(buf, 'JPEG')
-    data = buf.getvalue()
+    return buf.getvalue()
+
+
+def generate_waveform_mem(file_name, width=WAVEFORM_WIDTH,
+                          height=75, gain=1.0) -> bytes:
+    """Pipeline principale: soundfile + numpy + PIL → JPEG bytes.
+    Cachata su disco quando gain == 1.0; per gain ≠ 1.0 viene rigenerata in
+    memoria (gain è un trasformo visivo runtime, non vale la pena cacharlo
+    per ogni valore distinto).
+
+    Solleva eccezione se soundfile non riesce a decodificare il file
+    (formato non supportato da libsndfile, header rotto, ecc.). I chiamanti
+    che vogliono robustezza su formati esotici devono catturare e riprovare
+    con `generate_waveform_librosa`.
+    """
+    use_cache = abs(gain - 1.0) < 1e-6
+    cache = _waveform_cache_path(file_name, width) if use_cache else None
+    if cache is not None and os.path.isfile(cache):
+        try:
+            with open(cache, 'rb') as fh:
+                return fh.read()
+        except OSError:
+            pass
+
+    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+    data = _render_envelope_jpeg(samples, width, height, gain)
+
     if cache is not None:
         try:
             with open(cache, 'wb') as fh:
@@ -186,3 +92,22 @@ def generate_waveform_mem(file_name, file_duration, width=WAVEFORM_WIDTH, height
         except OSError as exc:
             logger.warning(f"cache write failed: {exc}")
     return data
+
+
+def generate_waveform_librosa(file_name, width=WAVEFORM_WIDTH,
+                              height=75, gain=1.0) -> bytes:
+    """Fallback: usa librosa.load (audioread/ffmpeg backend) per decodificare
+    formati che soundfile non gestisce nativamente — AAC/M4A, WMA, ALAC,
+    AC-3, AMR, ecc.
+
+    Più lento di `generate_waveform_mem` (un fattore 2-5x tipico, dato che
+    audioread spawna ffmpeg in subprocess) ma copre molti più formati.
+    Non usa la cache su disco: i casi d'uso sono file in formati esotici,
+    raramente ricaricati nello stesso progetto.
+
+    L'import di librosa è lazy: viene fatto solo se il fallback è davvero
+    necessario, evitando ~1s di startup time all'avvio dell'app.
+    """
+    import librosa  # lazy import — librosa is heavy
+    samples, _ = librosa.load(file_name, sr=None, mono=True)
+    return _render_envelope_jpeg(samples, width, height, gain)
