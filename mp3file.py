@@ -594,18 +594,29 @@ class Mp3File(QObject):
             self.fade_controller = None
 
     def fade_in(self, duration, end_volume):
-        if self._backend is None:
+        if self._backend is None or self._backend.is_playing():
             return
-        if not self._backend.is_playing():
-            self._stop_active_fade()
-            self._backend.play()
-            self.fade_in_started.emit()
-            self.playback_state_changed.emit('playing')
-            self.fade_controller = FadeController(duration, 0, end_volume)
-            self.fade_controller.update_volume.connect(self.set_volume)
-            self.fade_controller.finished.connect(lambda: self.fadeInFinished.emit())
-            controller = self.fade_controller
-            QTimer.singleShot(100, lambda: controller is self.fade_controller and (self.set_volume(0), controller.start()))
+        self._stop_active_fade()
+        # Silenzia PRIMA di play() per evitare un burst audibile iniziale
+        # (altrimenti l'audio parte all'actual_volume corrente per qualche ms).
+        self.set_volume(0)
+        self._backend.play()
+        self.fade_in_started.emit()
+        self.playback_state_changed.emit('playing')
+        self.fade_controller = FadeController(duration, 0, end_volume)
+        self.fade_controller.update_volume.connect(self.set_volume)
+        self.fade_controller.finished.connect(self.fadeInFinished.emit)
+        # Piccolo delay perché il backend abbia tempo di iniziare l'output
+        # prima che il fade cominci a salire — altrimenti i primi step del
+        # fade vanno sprecati su audio non ancora udibile.
+        pending = self.fade_controller
+        QTimer.singleShot(100, lambda c=pending: self._start_fade_if_current(c))
+
+    def _start_fade_if_current(self, controller):
+        """Start the fade only if it's still the active one (guards against
+        a newer fade superseding this one in the 100ms window)."""
+        if controller is self.fade_controller:
+            controller.start()
 
     def fade_out(self, duration, start_volume, end_volume):
         self._stop_active_fade()
@@ -660,6 +671,14 @@ class Mp3File(QObject):
             self._loader.quit()
             self._loader.wait()
             self._loader = None
+        if self._rms_thread is not None:
+            try:
+                self._rms_thread.analysis_done.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            self._rms_thread.quit()
+            self._rms_thread.wait()
+            self._rms_thread = None
         if self._backend is not None:
             self.stop()
             self._backend.release()

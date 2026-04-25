@@ -9,17 +9,26 @@ class GridManager:
         self._initial_cols = initial_cols
 
     def update_column_stretches(self):
-        """Occupied columns share all available space equally (stretch=1).
-        Empty columns get stretch=0 with a small fixed minimum width (60px)
-        so they stay visible and selectable as drop targets without stealing space.
-        Always shows at least initial_cols columns.
+        """Update column AND row stretches.
+
+        Columns: occupied get stretch=1, unoccupied get stretch=0 + a small
+        minimum width (60px) so they stay visible as drop targets without
+        stealing space. Always shows at least initial_cols columns.
+
+        Rows: all rows from 0 to max_occupied_row get stretch=1, ensuring no
+        row between the top and the last widget collapses (e.g. when a drag
+        places a widget at row=7 with no widgets in rows 5-6). Rows beyond
+        max_occupied are left untouched so previously expanded rows aren't
+        shrunk back when widgets above them are removed.
         """
         occupied_cols = set()
+        occupied_rows = set()
         for i in range(self._layout.count()):
             item = self._layout.itemAt(i)
             if item and item.widget():
-                _, col, _, _ = self._layout.getItemPosition(i)
+                row, col, _, _ = self._layout.getItemPosition(i)
                 occupied_cols.add(col)
+                occupied_rows.add(row)
 
         max_col = max(occupied_cols, default=-1)
         num_cols = max(max_col + 1, self._initial_cols)
@@ -31,6 +40,10 @@ class GridManager:
             else:
                 self._layout.setColumnStretch(c, 0)
                 self._layout.setColumnMinimumWidth(c, 60)
+
+        max_row = max(occupied_rows, default=-1)
+        for r in range(max_row + 1):
+            self._layout.setRowStretch(r, 1)
 
     def get_cell_at_pos(self, pos) -> tuple[int, int]:
         for r in range(self._layout.rowCount()):

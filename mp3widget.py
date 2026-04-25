@@ -85,6 +85,7 @@ class Mp3Widget(QWidget):
         self.current_layout_name = self.widgetLayout.name
 
         self.drag_start_position = QPoint()
+        self._drag_armed = False
         self._waveform_service = WaveformService(self)
         self._waveform_service.waveform_upgraded.connect(self._set_progress_bar_background)
 
@@ -99,16 +100,27 @@ class Mp3Widget(QWidget):
         self.defaultBtnStyle = "border: 1px solid; border-radius: 5px;"
         self.btnChangeLayout.setText(self.current_layout_name)
 
+    def _is_drag_handle(self, pos) -> bool:
+        """Solo la label del filename funge da drag handle: evita di rubare i
+        click ai pulsanti quando l'utente fa un piccolo movimento durante il click."""
+        return self.childAt(pos) is self.filename_label
+
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.LeftButton and self._is_drag_handle(event.pos()):
             self.drag_start_position = event.pos()
+            self._drag_armed = True
+        else:
+            self._drag_armed = False
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if not self._drag_armed:
+            return
         if not (event.buttons() & Qt.LeftButton):
             return
         if (event.pos() - self.drag_start_position).manhattanLength() < self.startDragDistance():
             return
+        self._drag_armed = False  # one drag per press
 
         drag = QDrag(self)
         mime_data = Mp3WidgetMimeData()
@@ -378,13 +390,18 @@ class Mp3Widget(QWidget):
         }
 
     def apply_state(self, state: dict) -> None:
-        """Restore widget state from a dict (missing keys are ignored)."""
-        if "volume" in state:
-            self.set_volume(int(state["volume"]))
+        """Restore widget state from a dict (missing keys are ignored).
+
+        Order matters: gain is applied before volume because set_gain rescales
+        actual_volume to keep the effective volume invariant — applying volume
+        last ensures the slider position from the saved state is preserved.
+        """
         if "fade_time" in state:
             self.set_fade_time(float(state["fade_time"]))
         if "gain" in state:
             self.set_gain(float(state["gain"]))
+        if "volume" in state:
+            self.set_volume(int(state["volume"]))
         if "layout" in state:
             try:
                 self.set_layout(WidgetLayout[state["layout"]])
@@ -434,9 +451,9 @@ class Mp3Widget(QWidget):
             info = self.mp3file.get_playback_info()
         except Exception as e:
             self._progress_error_count += 1
-            self.logger.error(f"Error getting playback info: {e}")
+            self.logger.debug(f"poll error {self._progress_error_count}: {e}")
             if self._progress_error_count >= self._MAX_PROGRESS_ERRORS:
-                self.logger.error(
+                self.logger.warning(
                     f"Polling disabilitato dopo {self._MAX_PROGRESS_ERRORS} errori consecutivi in update_progress_bar."
                 )
                 self._polling_disabled = True

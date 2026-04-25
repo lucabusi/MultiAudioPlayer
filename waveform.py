@@ -15,18 +15,19 @@ logger = logging.getLogger(__name__)
 _WAVEFORM_CACHE_DIR = os.path.join(tempfile.gettempdir(), 'mp3player_waveforms')
 
 
-def _waveform_cache_path(file_name: str) -> str:
-    """Return a unique, stable cache path for the waveform of file_name.
-    Uses an MD5 hash of the absolute path to avoid filename collisions.
+def _waveform_cache_path(file_name: str, width: int = 1500) -> str:
+    """Return a unique, stable cache path for the waveform of file_name
+    at the given width. Width is part of the key because waveforms rendered
+    at different widths are visually different.
     """
     os.makedirs(_WAVEFORM_CACHE_DIR, exist_ok=True)
     h = hashlib.md5(os.path.abspath(file_name).encode()).hexdigest()
-    return os.path.join(_WAVEFORM_CACHE_DIR, h + '.jpg')
+    return os.path.join(_WAVEFORM_CACHE_DIR, f"{h}_{width}.jpg")
 
 
-def clear_waveform_cache(file_name: str) -> None:
-    """Delete the cached waveform image for file_name, if it exists."""
-    path = _waveform_cache_path(file_name)
+def clear_waveform_cache(file_name: str, width: int = 1500) -> None:
+    """Delete the cached waveform image for file_name at the given width."""
+    path = _waveform_cache_path(file_name, width)
     try:
         os.remove(path)
         logger.debug(f"Removed waveform cache: {path}")
@@ -141,7 +142,18 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
 
 
 def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025, gain=1.0) -> bytes:
-    """Same as generate_waveform_HS but returns JPEG image data as bytes (no file I/O)."""
+    """Returns JPEG image data as bytes. Cached on disk when gain == 1.0;
+    gain-scaled waveforms are rendered fresh (gain is a runtime visual
+    transform, not worth caching per distinct value)."""
+    use_cache = abs(gain - 1.0) < 1e-6
+    cache = _waveform_cache_path(file_name, width) if use_cache else None
+    if cache is not None and os.path.isfile(cache):
+        try:
+            with open(cache, 'rb') as fh:
+                return fh.read()
+        except OSError:
+            pass
+
     samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
     if samples.ndim > 1:
         samples = samples.mean(axis=1)
@@ -165,5 +177,11 @@ def generate_waveform_mem(file_name, file_duration, width=1500, height=75, targe
 
     buf = io.BytesIO()
     Image.fromarray(canvas).save(buf, 'JPEG')
-    buf.seek(0)
-    return buf.read()
+    data = buf.getvalue()
+    if cache is not None:
+        try:
+            with open(cache, 'wb') as fh:
+                fh.write(data)
+        except OSError as exc:
+            logger.warning(f"cache write failed: {exc}")
+    return data

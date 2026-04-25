@@ -305,15 +305,15 @@ class MainApp(QMainWindow):
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Save,
             )
+            if reply == QMessageBox.Cancel:
+                event.ignore()
+                return
             if reply == QMessageBox.Save:
                 self.save_project()
-                event.accept()
-            elif reply == QMessageBox.Discard:
-                event.accept()
-            else:
-                event.ignore()
-        else:
-            event.accept()
+        self._progress_timer.stop()
+        for widget in list(self.mp3_widgets):
+            widget.shutdown()
+        event.accept()
 
     def remove_widget(self, widget):
         if widget in self.mp3_widgets:
