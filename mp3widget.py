@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
 from waveform_service import WaveformService
+from __init__ import PROGRESS_BAR_HEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +256,11 @@ class Mp3Widget(QWidget):
             if w is not None:
                 w.setParent(None)
 
+        # Reset column stretches: TOUCH setta valori specifici sulle colonne
+        # 0..11 che altrimenti persisterebbero passando a STANDARD/COMPACT.
+        for c in range(12):
+            self.widget_file_frame_layout.setColumnStretch(c, 0)
+
         layout = self.widget_file_frame_layout
 
         if self.widgetLayout == WidgetLayout.COMPACT:
@@ -475,7 +481,7 @@ class Mp3Widget(QWidget):
 
     def create_progress_bar(self):
         self.progress_bar = ClickableProgressBar()
-        self.progress_bar.setFixedHeight(48)
+        self.progress_bar.setFixedHeight(PROGRESS_BAR_HEIGHT)
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
         pixmap = self._waveform_service.generate(self.mp3file.file_name, self.file_duration)

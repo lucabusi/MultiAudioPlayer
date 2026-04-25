@@ -6,6 +6,7 @@ import soundfile as sf
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
+from __init__ import FADE_TICK_MS, FADE_STARTUP_DELAY_MS
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +46,14 @@ class FadeController(QObject):
         self.start_volume = start_volume
         self.end_volume = end_volume
         self.duration = duration
-        self.steps = int(duration * 10)
+        self.steps = int(duration * 1000 / FADE_TICK_MS)
         self.step_index = 0
         self.volume_step = (end_volume - start_volume) / self.steps if self.steps > 0 else 0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
 
     def start(self):
-        self.timer.start(100)
+        self.timer.start(FADE_TICK_MS)
 
     def stop(self):
         self.timer.stop()
@@ -595,6 +596,12 @@ class Mp3File(QObject):
             self.fade_controller = None
 
     def fade_in(self, duration, end_volume):
+        """Avvia la riproduzione partendo da volume 0 e sale fino a `end_volume`
+        in `duration` secondi. No-op se il backend è già in riproduzione.
+
+        :param duration: durata del fade in secondi (float).
+        :param end_volume: volume finale 0..100.
+        """
         if self._backend is None or self._backend.is_playing():
             return
         self._stop_active_fade()
@@ -611,7 +618,7 @@ class Mp3File(QObject):
         # prima che il fade cominci a salire — altrimenti i primi step del
         # fade vanno sprecati su audio non ancora udibile.
         pending = self.fade_controller
-        QTimer.singleShot(100, lambda c=pending: self._start_fade_if_current(c))
+        QTimer.singleShot(FADE_STARTUP_DELAY_MS, lambda c=pending: self._start_fade_if_current(c))
 
     def _start_fade_if_current(self, controller):
         """Start the fade only if it's still the active one (guards against
@@ -620,6 +627,14 @@ class Mp3File(QObject):
             controller.start()
 
     def fade_out(self, duration, start_volume, end_volume):
+        """Scende dal volume corrente `start_volume` a `end_volume` (tipicamente 0)
+        in `duration` secondi, poi ferma la riproduzione e ripristina
+        `start_volume` come volume "memorizzato" per il prossimo play.
+
+        :param duration: durata del fade in secondi (float).
+        :param start_volume: volume di partenza 0..100 (di solito quello dello slider).
+        :param end_volume: volume finale 0..100 (di solito 0).
+        """
         self._stop_active_fade()
         self.fade_controller = FadeController(duration, start_volume, end_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
@@ -632,15 +647,26 @@ class Mp3File(QObject):
         return max(0, min(100, int(self.actual_volume * self.gain)))
 
     def set_volume(self, volume: int):
+        """Imposta il volume "slider" (post-clamp 0..100). Il backend riceve
+        il volume effettivo = `volume * gain` (anch'esso clampato a 0..100).
+
+        :param volume: 0..100. Valori fuori range vengono clampati.
+        """
         self.actual_volume = max(0, min(100, int(volume)))
         if self._backend is not None:
             self._backend.set_volume(self._effective_volume())
         logger.debug(f"set_volume: {self.actual_volume}  gain: {self.gain:.3f}  effective: {self._effective_volume()}")
 
     def set_gain(self, gain: float) -> None:
+        """Imposta il gain (moltiplicatore) e ricalcola `actual_volume` in modo
+        che il volume effettivo udibile resti invariato. Esempio: se prima
+        actual_volume=100, gain=1.0 (effective=100), e l'utente normalizza
+        portando gain a 2.0, actual_volume diventa 50 (effective=100).
+
+        :param gain: 0..5.0 circa. Valori <=1e-6 vengono alzati a 1e-6.
+        """
         old_effective = self._effective_volume()
         self.gain = max(1e-6, gain)
-        # Ricalcola actual_volume per mantenere il volume effettivo invariato dopo il cambio di gain
         self.actual_volume = max(0, min(100, round(old_effective / self.gain)))
         if self._backend is not None:
             self._backend.set_volume(self._effective_volume())

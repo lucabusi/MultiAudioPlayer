@@ -3,6 +3,14 @@ import logging
 import waveform as wf
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
 from PyQt5.QtGui import QPixmap
+from __init__ import (
+    LARGE_FILE_BYTES,
+    WAVEFORM_DEBOUNCE_MS,
+    WAVEFORM_PREVIEW_WIDTH,
+    WAVEFORM_WIDTH,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _bytes_to_pixmap(data: bytes) -> QPixmap:
@@ -14,7 +22,7 @@ def _bytes_to_pixmap(data: bytes) -> QPixmap:
 class WaveformThread(QThread):
     waveform_ready = pyqtSignal(bytes, int)  # data, sequence number
 
-    def __init__(self, file_path: str, file_duration: float, width: int = 1500, gain: float = 1.0, seq: int = 0):
+    def __init__(self, file_path: str, file_duration: float, width: int = WAVEFORM_WIDTH, gain: float = 1.0, seq: int = 0):
         super().__init__()
         self._file_path = file_path
         self._file_duration = file_duration
@@ -34,14 +42,11 @@ class WaveformThread(QThread):
             if not self._cancelled:
                 self.waveform_ready.emit(data, self._seq)
         except Exception as e:
-            logging.getLogger(__name__).debug(f"Background waveform failed: {e}")
+            logger.debug(f"Background waveform failed: {e}")
 
 
 class WaveformService(QObject):
     waveform_upgraded = pyqtSignal(QPixmap)
-
-    LARGE_FILE_BYTES = 2 * 1024 * 1024  # 2 MB
-    DEBOUNCE_MS = 300
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,7 +57,7 @@ class WaveformService(QObject):
         self._pending_gain: float = 1.0
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(self.DEBOUNCE_MS)
+        self._debounce.setInterval(WAVEFORM_DEBOUNCE_MS)
         self._debounce.timeout.connect(self._do_refresh)
 
     def generate(self, file_path: str, duration: float, gain: float = 1.0) -> QPixmap:
@@ -64,11 +69,11 @@ class WaveformService(QObject):
         except OSError:
             fsize = 0
 
-        if fsize <= self.LARGE_FILE_BYTES:
-            return _bytes_to_pixmap(wf.generate_waveform_mem(file_path, duration, width=1500, gain=gain))
+        if fsize <= LARGE_FILE_BYTES:
+            return _bytes_to_pixmap(wf.generate_waveform_mem(file_path, duration, width=WAVEFORM_WIDTH, gain=gain))
 
         try:
-            initial_data = wf.generate_waveform_mem(file_path, duration, width=600, gain=gain)
+            initial_data = wf.generate_waveform_mem(file_path, duration, width=WAVEFORM_PREVIEW_WIDTH, gain=gain)
         except Exception:
             rosa_path = wf.generate_waveform_rosa(file_path, duration)
             with open(rosa_path, 'rb') as f:
@@ -92,7 +97,7 @@ class WaveformService(QObject):
         seq = self._seq
         for t in list(self._active_threads):
             t.cancel()
-        thread = WaveformThread(file_path, duration, width=1500, gain=gain, seq=seq)
+        thread = WaveformThread(file_path, duration, width=WAVEFORM_WIDTH, gain=gain, seq=seq)
         self._active_threads.add(thread)
         thread.waveform_ready.connect(self._on_waveform_ready)
         thread.finished.connect(lambda t=thread: self._active_threads.discard(t))

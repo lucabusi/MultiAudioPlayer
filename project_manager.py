@@ -43,7 +43,7 @@ class ProjectManager:
 
         with open(path, 'w') as f:
             json.dump(project_data, f, indent=4)
-        self.logger.info(f"Project saved to {path}")
+        logger.info(f"Project saved to {path}")
 
     def load(self, path: str) -> dict:
         with open(path, 'r') as f:

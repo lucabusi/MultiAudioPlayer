@@ -79,6 +79,37 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   TODO precedente): confermato implementato in `MainApp._tick_progress`,
   un singolo `QTimer` itera su tutti i widget invece di un timer per widget.
 
+### Sessione 3 — qualità e organizzazione
+
+- **Q4 — Logger inconsistente**
+  Tutti i moduli ora seguono il pattern Pythonico `logger = logging.getLogger(__name__)`
+  a livello modulo. Rimosse tutte le `self.logger = ...` in `__init__` (mainapp,
+  mp3widget, mp3file, project_manager) e tutte le chiamate inline
+  `logging.getLogger(__name__).X(...)`. `_StubBackend._log` rimosso (il nome del
+  backend è già nel messaggio). `ProjectManager.__init__` eliminato (era solo un
+  placeholder per il logger).
+
+- **Q7 — Reset column stretches in `apply_layout`**
+  `apply_layout` ora azzera `setColumnStretch(c, 0)` per c in 0..11 prima delle
+  branche TOUCH/STANDARD/COMPACT — niente più stretch residui ereditati da TOUCH.
+
+- **Q5 — Docstring sui metodi pubblici di `Mp3File`**
+  Aggiunte docstring a `fade_in`, `fade_out`, `set_volume`, `set_gain` con unità
+  di misura (secondi), range (0..100), e semantica del gain (mantiene effective
+  volume invariato).
+
+- **Q6 — `requirements.txt` aggiornato**
+  Aggiunto `soundfile` (era mancante!), commenti che separano dipendenze richieste
+  da backend audio opzionali (python-mpv, PyGObject), nota sul fallback stub.
+
+- **A5 — Costanti hardcoded centralizzate in `__init__.py`**
+  Nuovo file con `POLL_INTERVAL_MS`, `FADE_TICK_MS`, `FADE_STARTUP_DELAY_MS`,
+  `PROGRESS_BAR_HEIGHT`, `WAVEFORM_WIDTH`, `WAVEFORM_PREVIEW_WIDTH`,
+  `WAVEFORM_DEBOUNCE_MS`, `LARGE_FILE_BYTES`. Importate con `from __init__ import ...`
+  da mainapp/mp3file/mp3widget/waveform/waveform_service. Bonus: `FadeController.steps`
+  ora deriva da `FADE_TICK_MS` (`int(duration * 1000 / FADE_TICK_MS)`) invece del
+  precedente hardcode `int(duration * 10)`.
+
 ---
 
 ## 🟠 Problemi di robustezza ancora aperti
@@ -116,11 +147,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   I due blocchi sono al ~95% identici. Estrarre la parte comune in un
   metodo privato (es. `_layout_with_fade_presets`).
 
-- **Q7 — Stretch column residuo dopo TOUCH→STANDARD**
-  TOUCH setta esplicitamente `setColumnStretch(0..11)` con valori
-  specifici. STANDARD non li resetta → eredita il pattern di TOUCH.
-  Aggiungere reset esplicito a `apply_layout`.
-
 - **Q2 — `waveform.py` contiene 5 implementazioni**
   `generate_waveform`, `_pillow`, `_rosa`, `_HS`, `_mem`. Solo `_mem` è
   usata in produzione (`_rosa` come fallback raro). Le altre sono
@@ -130,21 +156,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   Numerosi `lambda w=mp3_widget: ...` per evitare il problema della
   closure tardiva. Funziona ma è anti-pattern: meglio usare il signal
   direttamente con `self.sender()` come riferimento al widget.
-
-- **Q4 — Logger inconsistente**
-  Alcune classi usano `self.logger = logging.getLogger(__name__)`,
-  altre fanno `logging.getLogger(__name__).debug(...)` inline. Convergere
-  su un pattern.
-
-- **Q5 — Documentazione metodi pubblici**
-  `Mp3File.fade_in`, `fade_out`, `set_volume`, `set_gain` hanno signature
-  complesse senza docstring. Es. `fade_in(duration, end_volume)` —
-  l'unità di `duration` (secondi) si scopre solo leggendo `FadeController`.
-
-- **Q6 — `requirements.txt` minimale**
-  ~55 byte. Manca `numpy`, `Pillow`, `python-vlc`, `python-mpv`,
-  `pygobject` (per gstreamer). Con il fallback stub ora l'app gira senza
-  i backend nativi, ma gli utenti che vogliono audio reale devono saperlo.
 
 ---
 
@@ -161,11 +172,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   thread nuovo. Con "Normalize All" su 20 widget, 20 thread paralleli
   saturano l'I/O leggendo lo stesso file. `QThreadPool.globalInstance()`
   con `setMaxThreadCount(4)` darebbe controllo.
-
-- **A5 — Costanti hardcoded sparpagliate**
-  `48` (PROGRESS_HEIGHT), `1500` (waveform width), `100` (fade tick ms),
-  `50` (poll ms), `300` (debounce ms), `2*1024*1024` (small file). Raccoglierle
-  in `constants.py`.
 
 - **`project_manager.py` — nessun versioning del formato JSON**
   C'è il campo `"version"` ma non viene usato per migrare progetti

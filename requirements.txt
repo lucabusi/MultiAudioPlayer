@@ -1,6 +1,15 @@
+# Core (richiesti)
 PyQt5
-python-vlc
-librosa
 numpy
-matplotlib
+soundfile
 Pillow
+
+# Decode + rendering waveform (richiesti)
+librosa
+matplotlib
+
+# Backend audio — almeno uno consigliato.
+# Senza nessuno di questi, _StubBackend prende il posto (UI-only, no audio output).
+python-vlc
+# python-mpv      # alternativa a VLC
+# PyGObject       # per GStreamer (richiede anche gstreamer1.0-plugins-base a livello di sistema)

@@ -9,13 +9,14 @@ import librosa
 import librosa.display
 import soundfile as sf
 from PIL import Image, ImageDraw
+from __init__ import WAVEFORM_WIDTH
 
 logger = logging.getLogger(__name__)
 
 _WAVEFORM_CACHE_DIR = os.path.join(tempfile.gettempdir(), 'mp3player_waveforms')
 
 
-def _waveform_cache_path(file_name: str, width: int = 1500) -> str:
+def _waveform_cache_path(file_name: str, width: int = WAVEFORM_WIDTH) -> str:
     """Return a unique, stable cache path for the waveform of file_name
     at the given width. Width is part of the key because waveforms rendered
     at different widths are visually different.
@@ -25,7 +26,7 @@ def _waveform_cache_path(file_name: str, width: int = 1500) -> str:
     return os.path.join(_WAVEFORM_CACHE_DIR, f"{h}_{width}.jpg")
 
 
-def clear_waveform_cache(file_name: str, width: int = 1500) -> None:
+def clear_waveform_cache(file_name: str, width: int = WAVEFORM_WIDTH) -> None:
     """Delete the cached waveform image for file_name at the given width."""
     path = _waveform_cache_path(file_name, width)
     try:
@@ -62,7 +63,7 @@ def generate_waveform(file_name, file_duration):
     return mp3WaveformImagePath
 
 
-def generate_waveform_pillow(file_name, file_duration, width=1500, height=75, target_sr=11025):
+def generate_waveform_pillow(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025):
     """Generate a waveform image using Pillow. Returns path to JPEG file."""
     samples, _ = librosa.load(file_name, sr=target_sr, mono=True)
     step = max(1, len(samples) // width)
@@ -105,7 +106,7 @@ def generate_waveform_rosa(file_name, file_duration):
     return mp3WaveformImagePath
 
 
-def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target_sr=11025):
+def generate_waveform_HS(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025):
     """Waveform generation: full-load envelope computation with soundfile + numpy reshape.
     Returns path to JPEG file.
     """
@@ -141,7 +142,7 @@ def generate_waveform_HS(file_name, file_duration, width=1500, height=75, target
     return mp3WaveformImagePath
 
 
-def generate_waveform_mem(file_name, file_duration, width=1500, height=75, target_sr=11025, gain=1.0) -> bytes:
+def generate_waveform_mem(file_name, file_duration, width=WAVEFORM_WIDTH, height=75, target_sr=11025, gain=1.0) -> bytes:
     """Returns JPEG image data as bytes. Cached on disk when gain == 1.0;
     gain-scaled waveforms are rendered fresh (gain is a runtime visual
     transform, not worth caching per distinct value)."""

@@ -8,6 +8,7 @@ from mp3file import Mp3File
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
+from __init__ import POLL_INTERVAL_MS
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ class MainApp(QMainWindow):
 
         self._progress_timer = QTimer(self)
         self._progress_timer.timeout.connect(self._tick_progress)
-        self._progress_timer.start(50)
+        self._progress_timer.start(POLL_INTERVAL_MS)
 
     def _tick_progress(self):
         for widget in self.mp3_widgets:
