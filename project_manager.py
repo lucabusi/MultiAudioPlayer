@@ -26,15 +26,10 @@ class ProjectManager:
             if widget not in widgets:
                 continue
             row, col, _, _ = grid_layout.getItemPosition(i)
-            files.append({
-                'file_path': widget.mp3file.file_name,
-                'volume': widget.mp3file.get_volume(),
-                'fade_time': widget.fade_time,
-                'gain': widget.mp3file.gain,
-                'row': row,
-                'col': col,
-                'layout': widget.widgetLayout.name,
-            })
+            entry = widget.to_state()
+            entry['row'] = row
+            entry['col'] = col
+            files.append(entry)
 
         project_data = {
             'version': '1.2',

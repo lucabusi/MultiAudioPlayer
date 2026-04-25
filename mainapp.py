@@ -252,9 +252,7 @@ class MainApp(QMainWindow):
                         layout = WidgetLayout[file_data.get('layout', 'TOUCH')]
                         mp3_widget = Mp3Widget(mp3_audio_file, layout=layout)
                         mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
-                        mp3_widget.set_volume(file_data['volume'])
-                        mp3_widget.set_fade_time(file_data['fade_time'])
-                        mp3_widget.spinboxGain.setValue(file_data.get('gain', 1.0))
+                        mp3_widget.apply_state(file_data)
 
                         row = file_data.get('row', -1)
                         col = file_data.get('col', -1)
@@ -292,7 +290,7 @@ class MainApp(QMainWindow):
 
     def clear_layout(self):
         for widget in self.mp3_widgets:
-            widget.mp3file.cleanup()
+            widget.shutdown()
             self.grid_layout.removeWidget(widget)
             widget.deleteLater()
         self.mp3_widgets.clear()

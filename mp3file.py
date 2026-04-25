@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 import numpy as np
 import soundfile as sf
 from abc import ABC, abstractmethod
@@ -101,29 +103,113 @@ class _PlaybackBackend(ABC):
     def release(self) -> None: ...
 
 
-class _VlcBackend(_PlaybackBackend):
-    def __init__(self, file_name: str):
-        import vlc
-        self._vlc = vlc
-        self._player = vlc.MediaPlayer(file_name)
-        media = vlc.Media(file_name)
-        self._player.set_media(media)
-        media.parse()
-        self._duration_ms: int = media.get_duration()
+class _StubBackend(_PlaybackBackend):
+    """In-memory backend that simulates playback by advancing a timer.
+    Fallback used when a real backend library is unavailable."""
+
+    def __init__(self, name: str, file_name: str):
+        self._log = logging.getLogger(f"_StubBackend({name})")
+        self._file_name = file_name
+        self._volume = 100
+        self._state = PlaybackState.STOPPED
+        self._position_ms = 0
+        self._t_anchor = time.monotonic()
+        try:
+            size = os.path.getsize(file_name)
+            self._duration_ms = max(30_000, int(size / (128 * 1024 / 8) * 1000))
+        except OSError:
+            self._duration_ms = 60_000
+        self._log.info("stub backend [%s] for %s (~%dms)", name, file_name, self._duration_ms)
+
+    def _tick(self):
+        now = time.monotonic()
+        if self._state == PlaybackState.PLAYING:
+            self._position_ms += int((now - self._t_anchor) * 1000)
+            if self._position_ms >= self._duration_ms:
+                self._position_ms = self._duration_ms
+                self._state = PlaybackState.ENDED
+        self._t_anchor = now
 
     def play(self) -> None:
+        self._tick()
+        if self._state == PlaybackState.ENDED:
+            self._position_ms = 0
+        self._state = PlaybackState.PLAYING
+
+    def pause(self) -> None:
+        self._tick()
+        if self._state == PlaybackState.PLAYING:
+            self._state = PlaybackState.PAUSED
+
+    def stop(self) -> None:
+        self._tick()
+        self._state = PlaybackState.STOPPED
+        self._position_ms = 0
+
+    def is_playing(self) -> bool:
+        self._tick()
+        return self._state == PlaybackState.PLAYING
+
+    def get_state(self) -> PlaybackState:
+        self._tick()
+        return self._state
+
+    def get_time_ms(self) -> int:
+        self._tick()
+        return self._position_ms
+
+    def get_duration_ms(self) -> int:
+        return self._duration_ms
+
+    def set_position(self, position: float) -> None:
+        self._tick()
+        self._position_ms = int(max(0.0, min(1.0, position)) * self._duration_ms)
+
+    def get_position(self) -> float:
+        if self._duration_ms == 0:
+            return 0.0
+        return self.get_time_ms() / self._duration_ms
+
+    def set_volume(self, volume: int) -> None:
+        self._volume = max(0, min(100, int(volume)))
+
+    def release(self) -> None:
+        pass
+
+
+class _VlcBackend(_PlaybackBackend):
+    def __init__(self, file_name: str):
+        self._stub: _StubBackend | None = None
+        try:
+            import vlc
+            self._vlc = vlc
+            self._player = vlc.MediaPlayer(file_name)
+            media = vlc.Media(file_name)
+            self._player.set_media(media)
+            media.parse()
+            self._duration_ms: int = media.get_duration()
+        except Exception as exc:
+            logging.getLogger(__name__).warning("VLC unavailable, using stub: %s", exc)
+            self._stub = _StubBackend("vlc", file_name)
+
+    def play(self) -> None:
+        if self._stub: self._stub.play(); return
         self._player.play()
 
     def pause(self) -> None:
+        if self._stub: self._stub.pause(); return
         self._player.pause()
 
     def stop(self) -> None:
+        if self._stub: self._stub.stop(); return
         self._player.stop()
 
     def is_playing(self) -> bool:
+        if self._stub: return self._stub.is_playing()
         return self._player.get_state() == self._vlc.State.Playing
 
     def get_state(self) -> PlaybackState:
+        if self._stub: return self._stub.get_state()
         s = self._player.get_state()
         if s == self._vlc.State.Playing:
             return PlaybackState.PLAYING
@@ -136,52 +222,63 @@ class _VlcBackend(_PlaybackBackend):
         return PlaybackState.STOPPED
 
     def get_time_ms(self) -> int:
+        if self._stub: return self._stub.get_time_ms()
         return self._player.get_time()
 
     def get_duration_ms(self) -> int:
+        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ms
 
     def set_position(self, position: float) -> None:
+        if self._stub: self._stub.set_position(position); return
         self._player.set_position(position)
 
     def get_position(self) -> float:
+        if self._stub: return self._stub.get_position()
         return self._player.get_position()
 
     def set_volume(self, volume: int) -> None:
+        if self._stub: self._stub.set_volume(volume); return
         self._player.audio_set_volume(max(0, min(100, volume)))
 
     def release(self) -> None:
+        if self._stub: return
         self._player.release()
 
 
 class _GStreamerBackend(_PlaybackBackend):
     def __init__(self, file_name: str):
-        import gi  # type: ignore[import]
-        gi.require_version('Gst', '1.0')
-        from gi.repository import Gst  # type: ignore[import]
-        Gst.init(None)
-        self._Gst = Gst
+        self._stub: _StubBackend | None = None
+        try:
+            import gi  # type: ignore[import]
+            gi.require_version('Gst', '1.0')
+            from gi.repository import Gst  # type: ignore[import]
+            Gst.init(None)
+            self._Gst = Gst
 
-        self._player = Gst.ElementFactory.make('playbin', 'player')
-        if self._player is None:
-            raise RuntimeError(
-                "Impossibile creare l'elemento GStreamer 'playbin'. "
-                "Verifica che gstreamer1.0-plugins-base sia installato."
-            )
+            self._player = Gst.ElementFactory.make('playbin', 'player')
+            if self._player is None:
+                raise RuntimeError(
+                    "Impossibile creare l'elemento GStreamer 'playbin'. "
+                    "Verifica che gstreamer1.0-plugins-base sia installato."
+                )
 
-        import pathlib
-        self._player.set_property('uri', pathlib.Path(file_name).as_uri())
-        self._volume = 100
-        self._player.set_property('volume', 1.0)
-        self._eos = False
+            import pathlib
+            self._player.set_property('uri', pathlib.Path(file_name).as_uri())
+            self._volume = 100
+            self._player.set_property('volume', 1.0)
+            self._eos = False
 
-        # Transition to PAUSED to resolve duration, then back to NULL
-        self._player.set_state(Gst.State.PAUSED)
-        self._player.get_state(Gst.CLOCK_TIME_NONE)
-        ok, self._duration_ns = self._player.query_duration(Gst.Format.TIME)
-        if not ok:
-            self._duration_ns = 0
-        self._player.set_state(Gst.State.NULL)
+            # Transition to PAUSED to resolve duration, then back to NULL
+            self._player.set_state(Gst.State.PAUSED)
+            self._player.get_state(Gst.CLOCK_TIME_NONE)
+            ok, self._duration_ns = self._player.query_duration(Gst.Format.TIME)
+            if not ok:
+                self._duration_ns = 0
+            self._player.set_state(Gst.State.NULL)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("GStreamer unavailable, using stub: %s", exc)
+            self._stub = _StubBackend("gstreamer", file_name)
 
     def _check_eos(self) -> bool:
         bus = self._player.get_bus()
@@ -194,25 +291,30 @@ class _GStreamerBackend(_PlaybackBackend):
         return self._eos
 
     def play(self) -> None:
+        if self._stub: self._stub.play(); return
         self._eos = False
         self._player.set_state(self._Gst.State.NULL)
         self._player.set_state(self._Gst.State.PLAYING)
 
     def pause(self) -> None:
+        if self._stub: self._stub.pause(); return
         self._player.set_state(self._Gst.State.PAUSED)
 
     def stop(self) -> None:
+        if self._stub: self._stub.stop(); return
         self._eos = False
         self._player.set_state(self._Gst.State.NULL)
         self._player.set_state(self._Gst.State.READY)
 
     def is_playing(self) -> bool:
+        if self._stub: return self._stub.is_playing()
         if self._check_eos():
             return False
         _, state, _ = self._player.get_state(0)
         return state == self._Gst.State.PLAYING
 
     def get_state(self) -> PlaybackState:
+        if self._stub: return self._stub.get_state()
         if self._check_eos():
             return PlaybackState.ENDED
         _, state, _ = self._player.get_state(0)
@@ -223,15 +325,18 @@ class _GStreamerBackend(_PlaybackBackend):
         return PlaybackState.STOPPED
 
     def get_time_ms(self) -> int:
+        if self._stub: return self._stub.get_time_ms()
         ok, pos_ns = self._player.query_position(self._Gst.Format.TIME)
         if not ok or pos_ns < 0:
             return 0
         return pos_ns // 1_000_000
 
     def get_duration_ms(self) -> int:
+        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ns // 1_000_000
 
     def set_position(self, position: float) -> None:
+        if self._stub: self._stub.set_position(position); return
         pos_ns = int(position * self._duration_ns)
         self._player.seek_simple(
             self._Gst.Format.TIME,
@@ -240,6 +345,7 @@ class _GStreamerBackend(_PlaybackBackend):
         )
 
     def get_position(self) -> float:
+        if self._stub: return self._stub.get_position()
         if self._duration_ns == 0:
             return 0.0
         ok, pos_ns = self._player.query_position(self._Gst.Format.TIME)
@@ -248,39 +354,45 @@ class _GStreamerBackend(_PlaybackBackend):
         return pos_ns / self._duration_ns
 
     def set_volume(self, volume: int) -> None:
+        if self._stub: self._stub.set_volume(volume); return
         self._volume = max(0, min(100, volume))
         self._player.set_property('volume', self._volume / 100.0)
 
     def release(self) -> None:
+        if self._stub: return
         self._player.set_state(self._Gst.State.NULL)
 
 
 class _MpvBackend(_PlaybackBackend):
     def __init__(self, file_name: str):
-        import mpv  # type: ignore[import]
-        self._file_name = file_name
-        self._stopped = True
-        self._player = mpv.MPV()
-        self._player.pause = True
-        self._player.play(file_name)
-        # Block briefly until duration is resolved (mpv runs its own event thread)
+        self._stub: _StubBackend | None = None
         try:
-            self._player.wait_for_property('duration', lambda d: d is not None and d > 0, timeout=5)
-        except Exception:
-            import time
-            deadline = time.monotonic() + 5.0
-            while self._player.duration is None and time.monotonic() < deadline:
-                time.sleep(0.05)
-        self._duration_ms = int((self._player.duration or 0.0) * 1000)
+            import mpv  # type: ignore[import]
+            self._file_name = file_name
+            self._stopped = True
+            self._player = mpv.MPV()
+            self._player.pause = True
+            self._player.play(file_name)
+            # Block briefly until duration is resolved (mpv runs its own event thread)
+            try:
+                self._player.wait_for_property('duration', lambda d: d is not None and d > 0, timeout=5)
+            except Exception:
+                deadline = time.monotonic() + 5.0
+                while self._player.duration is None and time.monotonic() < deadline:
+                    time.sleep(0.05)
+            self._duration_ms = int((self._player.duration or 0.0) * 1000)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("MPV unavailable, using stub: %s", exc)
+            self._stub = _StubBackend("mpv", file_name)
 
     def play(self) -> None:
+        if self._stub: self._stub.play(); return
         if self._player.core_idle and not self._player.pause:
             # File ended — reload from start
             self._player.play(self._file_name)
             try:
                 self._player.wait_for_property('duration', lambda d: d is not None and d > 0, timeout=3)
             except Exception:
-                import time
                 deadline = time.monotonic() + 3.0
                 while self._player.duration is None and time.monotonic() < deadline:
                     time.sleep(0.05)
@@ -288,9 +400,11 @@ class _MpvBackend(_PlaybackBackend):
         self._player.pause = False
 
     def pause(self) -> None:
+        if self._stub: self._stub.pause(); return
         self._player.pause = True
 
     def stop(self) -> None:
+        if self._stub: self._stub.stop(); return
         self._stopped = True
         self._player.pause = True
         try:
@@ -299,9 +413,11 @@ class _MpvBackend(_PlaybackBackend):
             pass
 
     def is_playing(self) -> bool:
+        if self._stub: return self._stub.is_playing()
         return not self._stopped and not self._player.pause and not self._player.core_idle
 
     def get_state(self) -> PlaybackState:
+        if self._stub: return self._stub.get_state()
         if self._stopped:
             return PlaybackState.STOPPED
         if self._player.core_idle and not self._player.pause:
@@ -311,24 +427,30 @@ class _MpvBackend(_PlaybackBackend):
         return PlaybackState.PLAYING
 
     def get_time_ms(self) -> int:
+        if self._stub: return self._stub.get_time_ms()
         pos = self._player.time_pos
         return int(pos * 1000) if pos is not None else 0
 
     def get_duration_ms(self) -> int:
+        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ms
 
     def set_position(self, position: float) -> None:
+        if self._stub: self._stub.set_position(position); return
         self._player.seek(position * (self._duration_ms / 1000.0), reference='absolute')
 
     def get_position(self) -> float:
+        if self._stub: return self._stub.get_position()
         if self._duration_ms == 0:
             return 0.0
         return self.get_time_ms() / self._duration_ms
 
     def set_volume(self, volume: int) -> None:
+        if self._stub: self._stub.set_volume(volume); return
         self._player.volume = float(max(0, min(100, volume)))
 
     def release(self) -> None:
+        if self._stub: return
         self._player.terminate()
 
 

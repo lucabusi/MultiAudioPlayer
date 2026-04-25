@@ -239,8 +239,9 @@ class Mp3Widget(QWidget):
     def apply_layout(self):
         while self.widget_file_frame_layout.count():
             item = self.widget_file_frame_layout.takeAt(0)
-            if item.widget():
-                pass
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
 
         layout = self.widget_file_frame_layout
 
@@ -334,11 +335,25 @@ class Mp3Widget(QWidget):
         self.mp3file.stop()
 
     def on_remove_clicked(self):
-        self._waveform_service.waveform_upgraded.disconnect(self._set_progress_bar_background)
-        self._waveform_service.cancel()
-        self.mp3file.cleanup()
+        self.shutdown()
         self.remove_requested.emit()
         self.deleteLater()
+
+    def shutdown(self) -> None:
+        """Stop playback, cancel background tasks, and release backend resources.
+        Safe to call multiple times."""
+        try:
+            self._waveform_service.waveform_upgraded.disconnect(self._set_progress_bar_background)
+        except (TypeError, RuntimeError):
+            pass
+        try:
+            self._waveform_service.cancel()
+        except Exception:
+            pass
+        try:
+            self.mp3file.cleanup()
+        except Exception:
+            pass
 
     def set_volume(self, volume: int):
         """Public API: set volume without accessing internal widgets directly."""
@@ -347,6 +362,34 @@ class Mp3Widget(QWidget):
     def set_fade_time(self, seconds: float):
         """Public API: set fade time without accessing internal widgets directly."""
         self.spinboxFadeTime.setValue(seconds)  # triggers update_fade_time() via valueChanged
+
+    def set_gain(self, gain: float):
+        """Public API: set gain via the spinbox so the change handler propagates."""
+        self.spinboxGain.setValue(gain)  # triggers _on_gain_changed via valueChanged
+
+    def to_state(self) -> dict:
+        """Serialize the widget state to a JSON-friendly dict."""
+        return {
+            "file_path": self.mp3file.file_name,
+            "volume": int(self.mp3file.get_volume()),
+            "fade_time": float(self.fade_time),
+            "gain": float(self.mp3file.gain),
+            "layout": self.widgetLayout.name,
+        }
+
+    def apply_state(self, state: dict) -> None:
+        """Restore widget state from a dict (missing keys are ignored)."""
+        if "volume" in state:
+            self.set_volume(int(state["volume"]))
+        if "fade_time" in state:
+            self.set_fade_time(float(state["fade_time"]))
+        if "gain" in state:
+            self.set_gain(float(state["gain"]))
+        if "layout" in state:
+            try:
+                self.set_layout(WidgetLayout[state["layout"]])
+            except KeyError:
+                pass
 
     def update_volume(self):
         volume = self.slidVolume.value()
