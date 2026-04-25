@@ -9,6 +9,8 @@ from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
 
+logger = logging.getLogger(__name__)
+
 
 class _HighlightOverlay(QWidget):
     """Transparent overlay that draws the drop-target highlight on top of all grid children."""
@@ -80,7 +82,6 @@ class MainApp(QMainWindow):
         super().__init__()
 
         self.mp3_widgets = []
-        self.logger = logging.getLogger(__name__)
         self.project_manager = ProjectManager()
 
         self.initial_rows = 5
@@ -180,18 +181,18 @@ class MainApp(QMainWindow):
 
         if item and item.widget() != source_widget:
             displaced_widget = item.widget()
-            self.logger.info(f"Cell ({target_row}, {target_col}) is occupied by {os.path.basename(displaced_widget.mp3file.file_name)}. Finding new spot.")
+            logger.info(f"Cell ({target_row}, {target_col}) is occupied by {os.path.basename(displaced_widget.mp3file.file_name)}. Finding new spot.")
             new_row, new_col = self.grid_manager.find_nearest_free_cell(target_row, target_col)
             if new_row != -1:
-                self.logger.info(f"Moving displaced widget to ({new_row}, {new_col}).")
+                logger.info(f"Moving displaced widget to ({new_row}, {new_col}).")
                 self.grid_layout.removeWidget(displaced_widget)
                 self.grid_layout.addWidget(displaced_widget, new_row, new_col)
             else:
-                self.logger.warning("Could not find a free cell for the displaced widget. Aborting drop.")
+                logger.warning("Could not find a free cell for the displaced widget. Aborting drop.")
                 event.ignore()
                 return
 
-        self.logger.info(f"Moving {os.path.basename(source_widget.mp3file.file_name)} to ({target_row}, {target_col}).")
+        logger.info(f"Moving {os.path.basename(source_widget.mp3file.file_name)} to ({target_row}, {target_col}).")
         self.grid_layout.removeWidget(source_widget)
         self.grid_layout.addWidget(source_widget, target_row, target_col)
         self.grid_manager.update_column_stretches()
@@ -222,9 +223,9 @@ class MainApp(QMainWindow):
         if file_name:
             try:
                 self.project_manager.save(self.mp3_widgets, self.grid_layout, self.geometry(), file_name)
-                self.logger.info(f"Project saved successfully to {file_name}")
+                logger.info(f"Project saved successfully to {file_name}")
             except Exception as e:
-                self.logger.error(f"Error saving project: {e}")
+                logger.error(f"Error saving project: {e}")
                 QMessageBox.critical(self, "Error", f"Failed to save project: {str(e)}")
 
     def load_project(self):
@@ -259,7 +260,7 @@ class MainApp(QMainWindow):
                         successful_loads.append((mp3_widget, row, col))
 
                     except Exception as e:
-                        self.logger.error(f"Error loading file {file_data['file_path']}: {e}")
+                        logger.error(f"Error loading file {file_data['file_path']}: {e}")
                         QMessageBox.warning(self, "Warning", f"Error loading file {os.path.basename(file_data['file_path'])}: {str(e)}")
 
                 for widget, row, col in successful_loads:
@@ -271,7 +272,7 @@ class MainApp(QMainWindow):
                         self.grid_layout.addWidget(widget, r, c)
                 self.grid_manager.update_column_stretches()
 
-                self.logger.info(f"Project loaded successfully from {file_name}")
+                logger.info(f"Project loaded successfully from {file_name}")
 
                 if 'window_state' in project_data:
                     ws = project_data['window_state']
@@ -280,7 +281,7 @@ class MainApp(QMainWindow):
                     y = min(max(0, ws['y']), screen.height() - ws['height'])
                     self.setGeometry(x, y, ws['width'], ws['height'])
             except Exception as e:
-                self.logger.error(f"Error loading project data: {e}")
+                logger.error(f"Error loading project data: {e}")
                 QMessageBox.critical(self, "Error", f"Failed to load project: {str(e)}")
 
     def normalize_all(self):
@@ -319,7 +320,7 @@ class MainApp(QMainWindow):
         if widget in self.mp3_widgets:
             self.mp3_widgets.remove(widget)
             self.grid_layout.removeWidget(widget)
-            self.logger.info(f"Removed widget for {os.path.basename(widget.mp3file.file_name)}.")
+            logger.info(f"Removed widget for {os.path.basename(widget.mp3file.file_name)}.")
             self.grid_manager.update_column_stretches()
 
 

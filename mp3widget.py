@@ -7,6 +7,8 @@ from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
 from waveform_service import WaveformService
 
+logger = logging.getLogger(__name__)
+
 
 class WidgetLayout(Enum):
     COMPACT = 1
@@ -35,7 +37,6 @@ class ClickableProgressBar(QProgressBar):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
         self._waveform: QPixmap | None = None
 
     def set_waveform(self, pixmap: QPixmap):
@@ -80,7 +81,6 @@ class Mp3Widget(QWidget):
         self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
         self.file_duration = self.mp3file.mp3_total_duration
-        self.logger = logging.getLogger(__name__)
         self.widgetLayout = layout
         self.current_layout_name = self.widgetLayout.name
 
@@ -451,9 +451,9 @@ class Mp3Widget(QWidget):
             info = self.mp3file.get_playback_info()
         except Exception as e:
             self._progress_error_count += 1
-            self.logger.debug(f"poll error {self._progress_error_count}: {e}")
+            logger.debug(f"poll error {self._progress_error_count}: {e}")
             if self._progress_error_count >= self._MAX_PROGRESS_ERRORS:
-                self.logger.warning(
+                logger.warning(
                     f"Polling disabilitato dopo {self._MAX_PROGRESS_ERRORS} errori consecutivi in update_progress_bar."
                 )
                 self._polling_disabled = True

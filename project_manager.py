@@ -2,11 +2,10 @@ import json
 import logging
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 
 class ProjectManager:
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-
     def save(self, widgets: list, grid_layout, window_geometry, path: str) -> None:
         if not path.endswith('.mpp'):
             path += '.mpp'

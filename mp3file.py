@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
 
+logger = logging.getLogger(__name__)
+
 
 def compute_peak_gain(file_path: str) -> float:
     """Calcola il gain necessario per portare il picco massimo del file a 1.0."""
@@ -31,7 +33,7 @@ class RmsAnalyzerThread(QThread):
             gain = compute_peak_gain(self._file_path)
             self.analysis_done.emit(gain)
         except Exception as e:
-            logging.getLogger(__name__).error(f"Peak analysis failed for {self._file_path}: {e}")
+            logger.error(f"Peak analysis failed for {self._file_path}: {e}")
 
 
 class FadeController(QObject):
@@ -108,7 +110,7 @@ class _StubBackend(_PlaybackBackend):
     Fallback used when a real backend library is unavailable."""
 
     def __init__(self, name: str, file_name: str):
-        self._log = logging.getLogger(f"_StubBackend({name})")
+        self._name = name
         self._file_name = file_name
         self._volume = 100
         self._state = PlaybackState.STOPPED
@@ -119,7 +121,7 @@ class _StubBackend(_PlaybackBackend):
             self._duration_ms = max(30_000, int(size / (128 * 1024 / 8) * 1000))
         except OSError:
             self._duration_ms = 60_000
-        self._log.info("stub backend [%s] for %s (~%dms)", name, file_name, self._duration_ms)
+        logger.info("stub backend [%s] for %s (~%dms)", name, file_name, self._duration_ms)
 
     def _tick(self):
         now = time.monotonic()
@@ -189,7 +191,7 @@ class _VlcBackend(_PlaybackBackend):
             media.parse()
             self._duration_ms: int = media.get_duration()
         except Exception as exc:
-            logging.getLogger(__name__).warning("VLC unavailable, using stub: %s", exc)
+            logger.warning("VLC unavailable, using stub: %s", exc)
             self._stub = _StubBackend("vlc", file_name)
 
     def play(self) -> None:
@@ -277,7 +279,7 @@ class _GStreamerBackend(_PlaybackBackend):
                 self._duration_ns = 0
             self._player.set_state(Gst.State.NULL)
         except Exception as exc:
-            logging.getLogger(__name__).warning("GStreamer unavailable, using stub: %s", exc)
+            logger.warning("GStreamer unavailable, using stub: %s", exc)
             self._stub = _StubBackend("gstreamer", file_name)
 
     def _check_eos(self) -> bool:
@@ -382,7 +384,7 @@ class _MpvBackend(_PlaybackBackend):
                     time.sleep(0.05)
             self._duration_ms = int((self._player.duration or 0.0) * 1000)
         except Exception as exc:
-            logging.getLogger(__name__).warning("MPV unavailable, using stub: %s", exc)
+            logger.warning("MPV unavailable, using stub: %s", exc)
             self._stub = _StubBackend("mpv", file_name)
 
     def play(self) -> None:
@@ -500,7 +502,6 @@ class Mp3File(QObject):
 
     def __init__(self, file_name: str, backend: str = 'vlc'):
         super().__init__()
-        self.logger = logging.getLogger(__name__)
         self.fade_controller = None
         self.file_name = file_name
         self._backend: _PlaybackBackend | None = None
@@ -529,7 +530,7 @@ class Mp3File(QObject):
         self.loaded.emit()
 
     def _on_backend_error(self, message: str):
-        self.logger.error(f"Impossibile inizializzare il backend: {message}")
+        logger.error(f"Impossibile inizializzare il backend: {message}")
         self._loader = None
         self.load_error.emit(message)
 
@@ -575,7 +576,7 @@ class Mp3File(QObject):
                 QTimer.singleShot(100, lambda: self.set_volume(self.actual_volume))
                 self.playback_state_changed.emit('playing')
         except Exception as e:
-            self.logger.error(f"Play/Pause failed: {e}")
+            logger.error(f"Play/Pause failed: {e}")
             raise
 
     def stop(self):
@@ -585,7 +586,7 @@ class Mp3File(QObject):
             self._backend.stop()
             self.playback_state_changed.emit('stopped')
         except Exception as e:
-            self.logger.error(f"Stop failed: {e}")
+            logger.error(f"Stop failed: {e}")
             raise
 
     def _stop_active_fade(self):
@@ -634,7 +635,7 @@ class Mp3File(QObject):
         self.actual_volume = max(0, min(100, int(volume)))
         if self._backend is not None:
             self._backend.set_volume(self._effective_volume())
-        self.logger.debug(f"set_volume: {self.actual_volume}  gain: {self.gain:.3f}  effective: {self._effective_volume()}")
+        logger.debug(f"set_volume: {self.actual_volume}  gain: {self.gain:.3f}  effective: {self._effective_volume()}")
 
     def set_gain(self, gain: float) -> None:
         old_effective = self._effective_volume()
@@ -643,7 +644,7 @@ class Mp3File(QObject):
         self.actual_volume = max(0, min(100, round(old_effective / self.gain)))
         if self._backend is not None:
             self._backend.set_volume(self._effective_volume())
-        self.logger.debug(f"set_gain: {self.gain:.3f}  actual: {self.actual_volume}  effective: {self._effective_volume()}")
+        logger.debug(f"set_gain: {self.gain:.3f}  actual: {self.actual_volume}  effective: {self._effective_volume()}")
 
     def normalize(self) -> None:
         """Avvia l'analisi peak in background; emette normalize_ready(gain) quando pronta."""
