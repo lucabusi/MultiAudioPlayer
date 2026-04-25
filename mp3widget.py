@@ -15,6 +15,7 @@ class WidgetLayout(Enum):
     COMPACT = 1
     TOUCH = 2
     STANDARD = 3
+    COMPACT_V = 4
 
 
 def seconds_to_min_sec(seconds: int) -> str:
@@ -60,11 +61,17 @@ class ClickableProgressBar(QProgressBar):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            click_position = event.x()
             total_width = self.width()
+            if total_width <= 0:
+                # Widget non ancora dimensionato; ignora il click per evitare
+                # divisione per zero.
+                super().mousePressEvent(event)
+                return
+            click_position = event.x()
             new_value = int(click_position / total_width * (self.maximum() - self.minimum()) + self.minimum())
             self.setValue(new_value)
-            self.clicked.emit(new_value / self.maximum())
+            if self.maximum() > 0:
+                self.clicked.emit(new_value / self.maximum())
         super().mousePressEvent(event)
 
 
@@ -236,6 +243,10 @@ class Mp3Widget(QWidget):
         action_standard.triggered.connect(lambda: self.set_layout(WidgetLayout.STANDARD))
         layout_menu.addAction(action_standard)
 
+        action_compact_v = QAction("Compact-V", self)
+        action_compact_v.triggered.connect(lambda: self.set_layout(WidgetLayout.COMPACT_V))
+        layout_menu.addAction(action_compact_v)
+
         self.btnChangeLayout.setMenu(layout_menu)
 
         self.widget_layout = QVBoxLayout()
@@ -256,76 +267,164 @@ class Mp3Widget(QWidget):
             if w is not None:
                 w.setParent(None)
 
-        # Reset column stretches: TOUCH setta valori specifici sulle colonne
-        # 0..11 che altrimenti persisterebbero passando a STANDARD/COMPACT.
+        # Reset column e row stretches: i singoli helper li riconfigurano
+        # secondo il layout, ma vanno azzerati prima per evitare residui di TOUCH.
         for c in range(12):
             self.widget_file_frame_layout.setColumnStretch(c, 0)
+        for r in range(8):
+            self.widget_file_frame_layout.setRowStretch(r, 0)
+
+        # SizePolicy default del widget; COMPACT_V la sovrascrive ad Expanding vert.
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = self.widget_file_frame_layout
 
         if self.widgetLayout == WidgetLayout.COMPACT:
-            layout.addWidget(self.btnRemove, 0, 0)
-            layout.addWidget(self.btnChangeLayout, 0, 1)
-            layout.addWidget(self.filename_label, 0, 2, 1, 3)
-            layout.addWidget(self.btnPlay, 0, 5)
-            layout.addWidget(self.btnFadeIn, 0, 6)
-            layout.addWidget(self.spinboxFadeTime, 0, 7)
-            layout.addWidget(self.btnFadeOut, 0, 8)
-            layout.addWidget(self.btnStop, 0, 9)
-            layout.addWidget(self.slidVolume, 0, 11, 4, 1)
-            layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.progress_bar, 1, 0, 2, 9)
-            layout.addWidget(self.lblRemainingTime, 1, 9, 1, 2)
-            layout.addWidget(self.lblElapsedTime, 2, 9, 1, 2)
-
+            self._apply_compact_layout(layout)
+        elif self.widgetLayout == WidgetLayout.COMPACT_V:
+            self._apply_compact_v_layout(layout)
         elif self.widgetLayout == WidgetLayout.TOUCH:
-            for i in range(12):
-                layout.setColumnStretch(i, 0)
-            layout.setColumnStretch(0, 1)
-            layout.setColumnStretch(10, 1)
-            for i in range(1, 10):
-                layout.setColumnStretch(i, 2)
-
-            for btn in [self.spinboxFadeTime, self.btnRemove, self.btnNorm, self.btnPlay, self.btnFadeIn, self.btnFadeOut, self.btnStop, self.btnChangeLayout, self.fade_preset_widget]:
-                btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-
-            layout.addWidget(self.btnRemove, 0, 0, 1, 1)
-            layout.addWidget(self.btnNorm, 1, 0, 1, 1)
-            layout.addWidget(self.btnChangeLayout, 0, 1, 1, 1)
-            layout.addWidget(self.filename_label, 0, 2, 1, 3)
-            layout.addWidget(self.btnPlay, 0, 5, 2, 1)
-            layout.addWidget(self.btnFadeIn, 0, 6, 2, 1)
-            layout.addWidget(self.spinboxFadeTime, 0, 7, 1, 1)
-            layout.addWidget(self.fade_preset_widget, 1, 7, 1, 1)
-            layout.addWidget(self.btnFadeOut, 0, 8, 2, 1)
-            layout.addWidget(self.btnStop, 0, 9, 2, 1)
-            layout.addWidget(self.slidVolume, 0, 11, 4, 1)
-            layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.spinboxGain, 1, 10)
-            layout.addWidget(self.progress_bar, 2, 0, 2, 11)
-            layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
-            layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
-
+            self._apply_touch_layout(layout)
         else:
-            for btn in [self.spinboxFadeTime, self.btnRemove, self.btnPlay, self.btnFadeIn, self.btnFadeOut, self.btnStop, self.btnChangeLayout]:
-                btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-
-            layout.addWidget(self.btnRemove, 0, 0, 2, 1)
-            layout.addWidget(self.btnChangeLayout, 0, 1, 1, 1)
-            layout.addWidget(self.filename_label, 0, 2, 1, 3)
-            layout.addWidget(self.btnPlay, 0, 5, 2, 1)
-            layout.addWidget(self.btnFadeIn, 0, 6, 2, 1)
-            layout.addWidget(self.spinboxFadeTime, 0, 7, 1, 1)
-            layout.addWidget(self.fade_preset_widget, 1, 7, 1, 1)
-            layout.addWidget(self.btnFadeOut, 0, 8, 2, 1)
-            layout.addWidget(self.btnStop, 0, 9, 2, 1)
-            layout.addWidget(self.slidVolume, 0, 11, 4, 1)
-            layout.addWidget(self.lblVolume, 0, 10)
-            layout.addWidget(self.progress_bar, 2, 0, 2, 11)
-            layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
-            layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
+            self._apply_standard_layout(layout)
 
         self.adjustSize()
+
+    # ------------------------------------------------------------------
+    # Layouts
+    # ------------------------------------------------------------------
+    def _apply_compact_layout(self, layout):
+        """Striscia minimale: solo Play/Stop + filename + tempo + volume.
+        Nasconde fade, gain, normalize. Volume slider orizzontale, button piccoli.
+        Ideale per playlist dense. 2 righe (controlli + progress bar)."""
+        self.slidVolume.setOrientation(Qt.Horizontal)
+
+        for btn in (self.btnPlay, self.btnStop, self.btnRemove,
+                    self.btnChangeLayout):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.slidVolume.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # filename ed eventualmente volume slider espandibili
+        layout.setColumnStretch(3, 3)  # filename
+        layout.setColumnStretch(6, 2)  # volume
+
+        layout.addWidget(self.btnChangeLayout, 0, 0)
+        layout.addWidget(self.btnPlay,         0, 1)
+        layout.addWidget(self.btnStop,         0, 2)
+        layout.addWidget(self.filename_label,  0, 3)
+        layout.addWidget(self.lblRemainingTime, 0, 4)
+        layout.addWidget(self.lblVolume,       0, 5)
+        layout.addWidget(self.slidVolume,      0, 6)
+        layout.addWidget(self.btnRemove,       0, 7)
+        layout.addWidget(self.progress_bar,    1, 0, 1, 8)
+
+    def _apply_standard_layout(self, layout):
+        """Desktop classico: tutti i controlli ma compatti, su 3 righe.
+        Volume slider orizzontale (differenza visiva chiave da TOUCH).
+        Ideale per uso mouse/keyboard su monitor."""
+        self.slidVolume.setOrientation(Qt.Horizontal)
+
+        for btn in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut,
+                    self.btnNorm, self.btnRemove, self.btnChangeLayout,
+                    self.spinboxFadeTime, self.spinboxGain,
+                    self.fade_preset_widget):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.slidVolume.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        layout.setColumnStretch(1, 3)   # filename / progress espandibili
+        layout.setColumnStretch(9, 2)   # volume slider
+
+        # Riga 0: header — layout switch | filename | remove
+        layout.addWidget(self.btnChangeLayout, 0, 0)
+        layout.addWidget(self.filename_label,  0, 1, 1, 9)
+        layout.addWidget(self.btnRemove,       0, 10)
+
+        # Riga 1: controlli playback + fade + gain + volume
+        layout.addWidget(self.btnPlay,           1, 0)
+        layout.addWidget(self.btnStop,           1, 1)
+        layout.addWidget(self.btnFadeIn,         1, 2)
+        layout.addWidget(self.spinboxFadeTime,   1, 3)
+        layout.addWidget(self.fade_preset_widget,1, 4)
+        layout.addWidget(self.btnFadeOut,        1, 5)
+        layout.addWidget(self.btnNorm,           1, 6)
+        layout.addWidget(self.spinboxGain,       1, 7)
+        layout.addWidget(self.lblVolume,         1, 8)
+        layout.addWidget(self.slidVolume,        1, 9, 1, 2)
+
+        # Riga 2: progress bar + tempi ai lati
+        layout.addWidget(self.lblElapsedTime,   2, 0)
+        layout.addWidget(self.progress_bar,     2, 1, 1, 9)
+        layout.addWidget(self.lblRemainingTime, 2, 10)
+
+    def _apply_compact_v_layout(self, layout):
+        """Mixer-channel verticale: stretto in orizzontale, alto in verticale.
+        Slider volume verticale (fader). Niente progress bar / waveform.
+        Pensato per disposizioni a colonne tipo mixer multicanale."""
+        # Allunga il widget verticalmente per ospitare un fader leggibile.
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.slidVolume.setOrientation(Qt.Vertical)
+        self.slidVolume.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.slidVolume.setMinimumHeight(80)
+
+        for btn in (self.btnPlay, self.btnStop, self.btnRemove,
+                    self.btnChangeLayout):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # 2 colonne, entrambe espandibili equamente.
+        #layout.setColumnStretch(0, 1)
+        #layout.setColumnStretch(1, 1)
+
+        # Solo la riga del fader cresce verticalmente; le altre stanno alla
+        # propria altezza naturale.
+        # layout.setRowStretch(4, 1)
+
+        # Riga 0: layout-switch + remove
+        layout.addWidget(self.btnChangeLayout, 0, 2, 1, 2)
+        layout.addWidget(self.btnRemove, 0, 0, 1, 2)
+        # Riga 1: filename a tutta larghezza (tagliato se non sta).
+        layout.addWidget(self.filename_label, 1, 0, 1, 4)
+        # Righe 2-3: Play / Stop a tutta larghezza
+        layout.addWidget(self.btnPlay, 2, 0, 2, 1)
+        layout.addWidget(self.btnFadeIn, 2, 1, 2, 1)        
+        layout.addWidget(self.btnFadeOut, 2, 2, 2, 1)        
+        layout.addWidget(self.btnStop, 2, 3, 2, 1)
+        # Riga 4: fader verticale, centrato orizzontalmente
+        layout.addWidget(self.slidVolume, 0, 5, 5, 1, Qt.AlignLeft)
+        # Riga 5: tempo rimanente in basso
+        layout.addWidget(self.lblRemainingTime, 4, 0, 1, 4)
+
+    def _apply_touch_layout(self, layout):
+        """Layout invariato: button grandi, slider verticale a destra, 4 righe.
+        Ideale per touchscreen / tablet."""
+        self.slidVolume.setOrientation(Qt.Vertical)
+        self.slidVolume.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+
+        for i in range(12):
+            layout.setColumnStretch(i, 0)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(10, 1)
+        for i in range(1, 10):
+            layout.setColumnStretch(i, 2)
+
+        for btn in [self.spinboxFadeTime, self.btnRemove, self.btnNorm, self.btnPlay, self.btnFadeIn, self.btnFadeOut, self.btnStop, self.btnChangeLayout, self.fade_preset_widget]:
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+        layout.addWidget(self.btnRemove, 0, 0, 1, 1)
+        layout.addWidget(self.btnNorm, 1, 0, 1, 1)
+        layout.addWidget(self.btnChangeLayout, 0, 1, 1, 1)
+        layout.addWidget(self.filename_label, 0, 2, 1, 3)
+        layout.addWidget(self.btnPlay, 0, 5, 2, 1)
+        layout.addWidget(self.btnFadeIn, 0, 6, 2, 1)
+        layout.addWidget(self.spinboxFadeTime, 0, 7, 1, 1)
+        layout.addWidget(self.fade_preset_widget, 1, 7, 1, 1)
+        layout.addWidget(self.btnFadeOut, 0, 8, 2, 1)
+        layout.addWidget(self.btnStop, 0, 9, 2, 1)
+        layout.addWidget(self.slidVolume, 0, 11, 4, 1)
+        layout.addWidget(self.lblVolume, 0, 10)
+        layout.addWidget(self.spinboxGain, 1, 10)
+        layout.addWidget(self.progress_bar, 2, 0, 2, 11)
+        layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
+        layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
 
     def changeButtonStyle(self, btn, color):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")

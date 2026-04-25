@@ -110,6 +110,42 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   ora deriva da `FADE_TICK_MS` (`int(duration * 1000 / FADE_TICK_MS)`) invece del
   precedente hardcode `int(duration * 10)`.
 
+- **R3 — `ClickableProgressBar.mousePressEvent` divisione per zero**
+  Aggiunto guard `if total_width <= 0: return` per gestire il widget non ancora
+  dimensionato. Aggiunto anche guard `if self.maximum() > 0` sul successivo
+  `clicked.emit(new_value / self.maximum())` per coerenza.
+
+- **R2 — Workaround volume su `play_pause` ora documentato e VLC-only**
+  Aggiunto attributo di classe `_PlaybackBackend.NEEDS_VOLUME_REAPPLY_ON_PLAY`
+  (default `False`); `_VlcBackend` lo setta a `True` con commento sul perché
+  (VLC reimposta il volume al massimo al primo `play()` finché il modulo audio
+  output non è pronto). `Mp3File.play_pause` consulta il flag — GStreamer, MPV
+  e lo stub non subiscono più il workaround inutile. Hardcode `100` sostituito
+  da `FADE_STARTUP_DELAY_MS`.
+
+- **Layout COMPACT/STANDARD ridisegnati come alternative distinte**
+  Prima erano molto simili a TOUCH (~95% di duplicazione TOUCH↔STANDARD,
+  TODO Q1). Ora:
+  - COMPACT = striscia minimale a 2 righe (controlli + progress bar), niente
+    fade/gain/normalize, slider volume orizzontale. Button con altezza Fixed.
+    Pensato per playlist dense.
+  - STANDARD = desktop classico a 3 righe (header / controlli / progress),
+    tutti i controlli, slider volume orizzontale, button compatti. Pensato
+    per uso mouse/keyboard.
+  - TOUCH = invariato (slider verticale a destra, button espandibili).
+  Refactor di `apply_layout` in tre helper privati `_apply_compact_layout`,
+  `_apply_standard_layout`, `_apply_touch_layout` — risolve anche Q1.
+
+- **Nuovo layout COMPACT_V (mixer-channel verticale)**
+  Aggiunto il valore `WidgetLayout.COMPACT_V` con voce nel menu del layout
+  switcher. Caratteristiche distintive:
+  - sizePolicy verticale `Expanding` (l'unico layout che si allunga in altezza)
+  - slider volume verticale (fader, centrato), prende lo spazio principale
+  - **niente progress bar / waveform** (per richiesta esplicita)
+  - controlli essenziali soli: layout-switch, remove, play, stop, tempo rimanente
+  - 2 colonne strette, ~120-150px di larghezza
+  Pensato per disposizioni a colonne tipo mixer multicanale.
+
 ---
 
 ## 🟠 Problemi di robustezza ancora aperti
@@ -123,17 +159,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
   può esserci CPU spike. Valutare `QThreadPool.globalInstance()` con
   `setMaxThreadCount(1-2)`.
 
-- **R2 — Workaround volume su play_pause non documentato**
-  [mp3file.py:574-575](mp3file.py#L574-L575): il
-  `QTimer.singleShot(100, lambda: self.set_volume(self.actual_volume))`
-  dopo `play()` è probabilmente un workaround per VLC che reimposta il
-  volume al play. Andrebbe almeno commentato e idealmente applicato solo
-  a `_VlcBackend`, non agli altri backend.
-
-- **R3 — `ClickableProgressBar.mousePressEvent` divisione per zero**
-  Se `total_width == 0` (widget appena creato e non ancora dimensionato)
-  → `ZeroDivisionError`. Aggiungere guard `if total_width <= 0: return`.
-
 - **`waveform_service.py` — `generate()` blocca il main thread su cold cache**
   Mitigato dal fix R5 per i reload, ma il primo caricamento di un file
   grande blocca ancora la UI. Valutare esecuzione in background con uno
@@ -142,10 +167,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-25.
 ---
 
 ## 🟡 Qualità e manutenibilità
-
-- **`mp3widget.py:262-308` — duplicazione TOUCH / STANDARD in `apply_layout`**
-  I due blocchi sono al ~95% identici. Estrarre la parte comune in un
-  metodo privato (es. `_layout_with_fade_presets`).
 
 - **Q2 — `waveform.py` contiene 5 implementazioni**
   `generate_waveform`, `_pillow`, `_rosa`, `_HS`, `_mem`. Solo `_mem` è

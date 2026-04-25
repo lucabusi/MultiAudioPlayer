@@ -82,6 +82,10 @@ class PlaybackState(Enum):
 
 
 class _PlaybackBackend(ABC):
+    # Se True, dopo `play()` il backend perde il volume corrente e va riapplicato
+    # con un piccolo delay. Specifico di VLC (vedi _VlcBackend).
+    NEEDS_VOLUME_REAPPLY_ON_PLAY: bool = False
+
     @abstractmethod
     def play(self) -> None: ...
     @abstractmethod
@@ -181,6 +185,13 @@ class _StubBackend(_PlaybackBackend):
 
 
 class _VlcBackend(_PlaybackBackend):
+    # VLC reimposta il volume al massimo al primo play() finché il modulo
+    # audio output non è inizializzato. Con un delay di FADE_STARTUP_DELAY_MS
+    # ms (~100ms) il backend ha avuto il tempo di settare l'output e set_volume()
+    # ha effetto. Senza questo workaround, l'utente sentirebbe un breve burst
+    # a volume massimo all'avvio.
+    NEEDS_VOLUME_REAPPLY_ON_PLAY: bool = True
+
     def __init__(self, file_name: str):
         self._stub: _StubBackend | None = None
         try:
@@ -574,7 +585,9 @@ class Mp3File(QObject):
                 self.playback_state_changed.emit('paused')
             else:
                 self._backend.play()
-                QTimer.singleShot(100, lambda: self.set_volume(self.actual_volume))
+                if self._backend.NEEDS_VOLUME_REAPPLY_ON_PLAY:
+                    QTimer.singleShot(FADE_STARTUP_DELAY_MS,
+                                      lambda: self.set_volume(self.actual_volume))
                 self.playback_state_changed.emit('playing')
         except Exception as e:
             logger.error(f"Play/Pause failed: {e}")
