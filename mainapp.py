@@ -211,7 +211,7 @@ class MainApp(QMainWindow):
 
                 mp3_audio_file = Mp3File(file_name, backend=self.backend)
                 mp3_widget = Mp3Widget(mp3_audio_file)
-                mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
+                mp3_widget.remove_requested.connect(self.remove_widget)
 
                 self.mp3_widgets.append(mp3_widget)
                 self.grid_layout.addWidget(mp3_widget, row, col)
@@ -253,7 +253,7 @@ class MainApp(QMainWindow):
                         mp3_audio_file = Mp3File(file_data['file_path'], backend=self.backend)
                         layout = WidgetLayout[file_data.get('layout', 'TOUCH')]
                         mp3_widget = Mp3Widget(mp3_audio_file, layout=layout)
-                        mp3_widget.remove_requested.connect(lambda w=mp3_widget: self.remove_widget(w))
+                        mp3_widget.remove_requested.connect(self.remove_widget)
                         mp3_widget.apply_state(file_data)
 
                         row = file_data.get('row', -1)

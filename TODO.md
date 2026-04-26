@@ -25,15 +25,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-26.
 
 ---
 
-## 🟡 Qualità e manutenibilità
-
-- **Q3 — Lambda capture pattern fragile**
-  Numerosi `lambda w=mp3_widget: ...` per evitare il problema della
-  closure tardiva. Funziona ma è anti-pattern: meglio usare il signal
-  direttamente con `self.sender()` come riferimento al widget.
-
----
-
 ## 🔵 Suggerimenti architetturali
 
 - **A2 — Pool di QThread riutilizzabili**

@@ -76,7 +76,7 @@ class ClickableProgressBar(QProgressBar):
 
 
 class Mp3Widget(QWidget):
-    remove_requested = pyqtSignal()
+    remove_requested = pyqtSignal(object)  # emette self
 
     def __init__(self, mp3_audio_file: Mp3File, layout: WidgetLayout = WidgetLayout.TOUCH):
         super().__init__()
@@ -453,7 +453,7 @@ class Mp3Widget(QWidget):
 
     def on_remove_clicked(self):
         self.shutdown()
-        self.remove_requested.emit()
+        self.remove_requested.emit(self)
         self.deleteLater()
 
     def shutdown(self) -> None:
