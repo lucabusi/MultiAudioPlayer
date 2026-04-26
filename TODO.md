@@ -33,11 +33,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-26.
   saturano l'I/O leggendo lo stesso file. `QThreadPool.globalInstance()`
   con `setMaxThreadCount(4)` darebbe controllo.
 
-- **`project_manager.py` — nessun versioning del formato JSON**
-  C'è il campo `"version"` ma non viene usato per migrare progetti
-  vecchi. Quando si cambia il formato (es. dopo il fix B1, i file
-  pre-fix hanno volume "post-gain" da convertire), serve una migrazione.
-
 ---
 
 ## Note architetturali (refactoring a lungo termine)
@@ -54,5 +49,5 @@ Generato il 2026-04-14. Aggiornato il 2026-04-26.
   Introdurre dependency injection per `Mp3File` in `Mp3Widget`.
 
 - **`FadeController`**: non valida `end_volume > start_volume` per
-  fade-in né `start_volume > end_volume` per fade-out, e non gestisce
-  esplicitamente `duration=0`. Aggiungere guard clause.
+  fade-in né `start_volume > end_volume` per fade-out. (Nota: `duration=0`
+  è gestito dal clamp `max(0.001, duration)` in `__init__`.)

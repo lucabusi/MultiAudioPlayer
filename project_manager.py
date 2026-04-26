@@ -4,6 +4,8 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+CURRENT_VERSION = '1.2'
+
 
 class ProjectManager:
     def save(self, widgets: list, grid_layout, window_geometry, path: str) -> None:
@@ -31,7 +33,7 @@ class ProjectManager:
             files.append(entry)
 
         project_data = {
-            'version': '1.2',
+            'version': CURRENT_VERSION,
             'saved_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'window_state': window_state,
             'grid_state': {
@@ -48,6 +50,34 @@ class ProjectManager:
     def load(self, path: str) -> dict:
         with open(path, 'r') as f:
             project_data = json.load(f)
-        if 'version' not in project_data or 'files' not in project_data:
-            raise ValueError("Invalid project file format")
+        if 'files' not in project_data:
+            raise ValueError("Invalid project file format: missing 'files'")
+
+        version = project_data.get('version', '0.0')
+        if version != CURRENT_VERSION:
+            project_data = self._migrate(project_data, version)
         return project_data
+
+    def _migrate(self, data: dict, from_version: str) -> dict:
+        """Migra il progetto da versioni precedenti a CURRENT_VERSION.
+
+        Aggiungere step di migrazione qui man mano che lo schema evolve.
+        Ogni step trasforma `data` in-place e aggiorna `data['version']`.
+        Esempio (per future modifiche):
+
+            if from_version < '1.3':
+                # trasformazione...
+                data['version'] = '1.3'
+                from_version = '1.3'
+            if from_version < '1.4':
+                ...
+        """
+        logger.warning(
+            f"Loading project version '{from_version}'; "
+            f"current is '{CURRENT_VERSION}' — migrating."
+        )
+        # Nessuna migrazione definita: lo schema non ha avuto breaking changes
+        # dopo la 1.2. Se il file è più vecchio di 1.2 oggi viene caricato
+        # best-effort (i campi mancanti vengono ignorati da apply_state).
+        data['version'] = CURRENT_VERSION
+        return data

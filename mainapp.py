@@ -276,14 +276,27 @@ class MainApp(QMainWindow):
                 logger.info(f"Project loaded successfully from {file_name}")
 
                 if 'window_state' in project_data:
-                    ws = project_data['window_state']
-                    screen = QApplication.primaryScreen().geometry()
-                    x = min(max(0, ws['x']), screen.width() - ws['width'])
-                    y = min(max(0, ws['y']), screen.height() - ws['height'])
-                    self.setGeometry(x, y, ws['width'], ws['height'])
+                    self._restore_geometry_clamped(project_data['window_state'])
             except Exception as e:
                 logger.error(f"Error loading project data: {e}")
                 QMessageBox.critical(self, "Error", f"Failed to load project: {str(e)}")
+
+    def _restore_geometry_clamped(self, ws: dict) -> None:
+        """Restora geometria della finestra clampata all'`availableGeometry`.
+
+        Usa `availableGeometry()` (esclude taskbar/dock) e tiene conto del
+        fatto che su multi-monitor l'origine dello schermo primario può non
+        essere (0,0). Width/height vengono clampate ai limiti dello schermo.
+        """
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        w = max(400, min(avail.width(), int(ws.get('width', 1080))))
+        h = max(300, min(avail.height(), int(ws.get('height', 600))))
+        x = max(avail.x(), min(avail.right() - w, int(ws.get('x', avail.x()))))
+        y = max(avail.y(), min(avail.bottom() - h, int(ws.get('y', avail.y()))))
+        self.setGeometry(x, y, w, h)
 
     def normalize_all(self):
         """Avvia la normalizzazione RMS su tutti i widget aperti in parallelo."""

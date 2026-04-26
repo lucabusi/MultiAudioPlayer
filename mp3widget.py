@@ -88,7 +88,6 @@ class Mp3Widget(QWidget):
 
         self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
-        self.file_duration = self.mp3file.mp3_total_duration
         self.widgetLayout = layout
         self.current_layout_name = self.widgetLayout.name
 
@@ -209,7 +208,7 @@ class Mp3Widget(QWidget):
         self.spinboxGain.valueChanged.connect(self._on_gain_changed)
         self.lblElapsedTime = QLabel("Elapsed time: 00:00")
         self.lblElapsedTime.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self.lblRemainingTime = QLabel(f"Remaining time: {seconds_to_min_sec(int(self.file_duration/1000))}")
+        self.lblRemainingTime = QLabel(f"Remaining time: {seconds_to_min_sec(int(self.mp3file.mp3_total_duration / 1000))}")
         self.btnFadePreset1 = QPushButton("1")
         self.btnFadePreset1.clicked.connect(lambda: self.spinboxFadeTime.setValue(1))
         self.btnFadePreset2 = QPushButton("3")
@@ -571,7 +570,7 @@ class Mp3Widget(QWidget):
         else:
             self.progress_bar.setValue(0)
             self.lblElapsedTime.setText("Elapsed Time: 00:00")
-            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.file_duration / 1000))}")
+            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.mp3file.mp3_total_duration / 1000))}")
 
     def _set_progress_bar_background(self, pixmap: QPixmap):
         if self.progress_bar is None:

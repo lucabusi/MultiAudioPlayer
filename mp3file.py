@@ -485,8 +485,8 @@ class _BackendLoader(QThread):
     ready = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, cls, file_name: str):
-        super().__init__()
+    def __init__(self, cls, file_name: str, parent=None):
+        super().__init__(parent)
         self._cls = cls
         self._file_name = file_name
 
@@ -541,7 +541,7 @@ class Mp3File(QObject):
                 f"Disponibili: {', '.join(available_backends())}"
             )
 
-        self._loader = _BackendLoader(_BACKENDS[backend_key], file_name)
+        self._loader = _BackendLoader(_BACKENDS[backend_key], file_name, parent=self)
         self._loader.ready.connect(self._on_backend_ready)
         self._loader.error.connect(self._on_backend_error)
         self._loader.start()
@@ -655,15 +655,18 @@ class Mp3File(QObject):
         """Scende dal volume corrente `start_volume` a `end_volume` (tipicamente 0)
         in `duration` secondi, poi ferma la riproduzione e ripristina
         `start_volume` come volume "memorizzato" per il prossimo play.
+        No-op se il backend non è in riproduzione.
 
         :param duration: durata del fade in secondi (float).
         :param start_volume: volume di partenza 0..100 (di solito quello dello slider).
         :param end_volume: volume finale 0..100 (di solito 0).
         """
+        if self._backend is None or not self._backend.is_playing():
+            return
         self._stop_active_fade()
         self.fade_controller = FadeController(duration, start_volume, end_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
-        self.fade_controller.finished.connect(lambda: self.fadeOutFinished.emit())
+        self.fade_controller.finished.connect(self.fadeOutFinished.emit)
         self.fade_controller.finished.connect(self.stop)
         self.fade_controller.finished.connect(lambda: self.set_volume(start_volume))
         self.fade_controller.start()
@@ -734,3 +737,4 @@ class Mp3File(QObject):
         if self._backend is not None:
             self.stop()
             self._backend.release()
+            self._backend = None  # idempotenza: la 2ª chiamata è no-op
