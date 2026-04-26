@@ -36,12 +36,6 @@ Generato il 2026-04-14. Aggiornato il 2026-04-26.
 
 ## 🔵 Suggerimenti architetturali
 
-- **A1 — `FadeController` basato sul tempo trascorso**
-  Attualmente usa `step_index/steps`: preciso solo se i tick QTimer
-  arrivano puntuali. Sotto carico (dragging UI, GC pause) la durata reale
-  del fade si dilata. test_claude usa `elapsed += dt` che è robusto a
-  tick mancati. Vedere `_Fade` in `test_claude/audio_widget.py:91-107`.
-
 - **A2 — Pool di QThread riutilizzabili**
   Ogni `WaveformThread`, `RmsAnalyzerThread`, `_BackendLoader` crea un
   thread nuovo. Con "Normalize All" su 20 widget, 20 thread paralleli

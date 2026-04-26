@@ -38,35 +38,47 @@ class RmsAnalyzerThread(QThread):
 
 
 class FadeController(QObject):
+    """Linear fade da `start_volume` a `end_volume` in `duration` secondi.
+
+    Il progress è calcolato dal tempo reale trascorso (`time.monotonic()`),
+    non dal numero di tick QTimer. Questo lo rende robusto a tick mancati
+    o ritardati: se il main loop è bloccato per 200ms, il prossimo tick
+    salta direttamente al volume corretto invece di "rimanere indietro" e
+    dilatare la durata totale del fade.
+
+    Edge case: `duration` <= 0 viene clampata a 1ms così il primo tick
+    completa subito il fade senza divisione per zero.
+    """
+
     update_volume = pyqtSignal(int)
     finished = pyqtSignal()
 
     def __init__(self, duration, start_volume, end_volume, parent=None):
         super().__init__(parent)
-        self.start_volume = start_volume
-        self.end_volume = end_volume
-        self.duration = duration
-        self.steps = int(duration * 1000 / FADE_TICK_MS)
-        self.step_index = 0
-        self.volume_step = (end_volume - start_volume) / self.steps if self.steps > 0 else 0
+        self.start_volume = float(start_volume)
+        self.end_volume = float(end_volume)
+        self.duration = max(0.001, float(duration))
+        self._t_start = 0.0
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update)
+        self.timer.timeout.connect(self._tick)
 
     def start(self):
+        self._t_start = time.monotonic()
         self.timer.start(FADE_TICK_MS)
 
     def stop(self):
         self.timer.stop()
 
-    def update(self):
-        if self.step_index >= self.steps:
-            self.update_volume.emit(int(self.end_volume))
+    def _tick(self):
+        elapsed = time.monotonic() - self._t_start
+        if elapsed >= self.duration:
+            self.update_volume.emit(int(round(self.end_volume)))
             self.timer.stop()
             self.finished.emit()
             return
-        volume = int(self.start_volume + self.volume_step * self.step_index)
+        ratio = elapsed / self.duration
+        volume = int(round(self.start_volume + (self.end_volume - self.start_volume) * ratio))
         self.update_volume.emit(volume)
-        self.step_index += 1
 
 
 # ---------------------------------------------------------------------------
