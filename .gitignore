@@ -29,3 +29,7 @@ test*/
 path/
 future/
 _old/
+*.mpp
+*.code-workspace
+*.log
+temp/
