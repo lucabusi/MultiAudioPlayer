@@ -1,3 +1,4 @@
+# python
 __pycache__/
 *.pyc
 *.pyo
@@ -6,22 +7,13 @@ env/
 venv/
 *.egg-info/
 *.dist-info/
-.vscode/
-*.jpg
-*.wav
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-env/
-venv/
-*.egg-info/
-*.dist-info/
+
 # IDE
 .vscode/
 *.suo
 *.user
+*.code-workspace
+
 # audio / large generated images
 *.jpg
 *.wav
@@ -30,7 +22,9 @@ path/
 future/
 _old/
 *.mpp
-*.code-workspace
 *.log
-temp/
+temp
+
+# claude
 .claude/
+claude.md

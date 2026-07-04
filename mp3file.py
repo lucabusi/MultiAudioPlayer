@@ -1,12 +1,14 @@
 import logging
 import os
+import sys
 import time
 import numpy as np
 import soundfile as sf
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
-from __init__ import FADE_TICK_MS, FADE_STARTUP_DELAY_MS
+from constants import FADE_TICK_MS, FADE_STARTUP_DELAY_MS
+from thread_registry import retain
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +24,9 @@ def compute_peak_gain(file_path: str) -> float:
     return 1.0 / peak
 
 
-class RmsAnalyzerThread(QThread):
+class PeakAnalyzerThread(QThread):
     analysis_done = pyqtSignal(float)
+    analysis_failed = pyqtSignal(str)
 
     def __init__(self, file_path: str):
         super().__init__()
@@ -32,9 +35,11 @@ class RmsAnalyzerThread(QThread):
     def run(self):
         try:
             gain = compute_peak_gain(self._file_path)
-            self.analysis_done.emit(gain)
         except Exception as e:
             logger.error(f"Peak analysis failed for {self._file_path}: {e}")
+            self.analysis_failed.emit(str(e))
+            return
+        self.analysis_done.emit(gain)
 
 
 class FadeController(QObject):
@@ -90,7 +95,6 @@ class PlaybackState(Enum):
     PAUSED = auto()
     STOPPED = auto()
     ENDED = auto()
-    ERROR = auto()
 
 
 class _PlaybackBackend(ABC):
@@ -98,14 +102,16 @@ class _PlaybackBackend(ABC):
     # con un piccolo delay. Specifico di VLC (vedi _VlcBackend).
     NEEDS_VOLUME_REAPPLY_ON_PLAY: bool = False
 
+    # Se True, il backend è un QObject Qt e va creato sul MAIN thread
+    # (affinità di thread), non nel _BackendLoader. Vedi _QtBackend.
+    REQUIRES_MAIN_THREAD: bool = False
+
     @abstractmethod
     def play(self) -> None: ...
     @abstractmethod
     def pause(self) -> None: ...
     @abstractmethod
     def stop(self) -> None: ...
-    @abstractmethod
-    def is_playing(self) -> bool: ...
     @abstractmethod
     def get_state(self) -> PlaybackState: ...
     @abstractmethod
@@ -120,6 +126,9 @@ class _PlaybackBackend(ABC):
     def set_volume(self, volume: int) -> None: ...
     @abstractmethod
     def release(self) -> None: ...
+
+    def is_playing(self) -> bool:
+        return self.get_state() == PlaybackState.PLAYING
 
 
 class _StubBackend(_PlaybackBackend):
@@ -165,10 +174,6 @@ class _StubBackend(_PlaybackBackend):
         self._state = PlaybackState.STOPPED
         self._position_ms = 0
 
-    def is_playing(self) -> bool:
-        self._tick()
-        return self._state == PlaybackState.PLAYING
-
     def get_state(self) -> PlaybackState:
         self._tick()
         return self._state
@@ -205,37 +210,37 @@ class _VlcBackend(_PlaybackBackend):
     NEEDS_VOLUME_REAPPLY_ON_PLAY: bool = True
 
     def __init__(self, file_name: str):
-        self._stub: _StubBackend | None = None
-        try:
-            import vlc
-            self._vlc = vlc
-            self._player = vlc.MediaPlayer(file_name)
-            media = vlc.Media(file_name)
-            self._player.set_media(media)
-            media.parse()
-            self._duration_ms: int = media.get_duration()
-        except Exception as exc:
-            logger.warning("VLC unavailable, using stub: %s", exc)
-            self._stub = _StubBackend("vlc", file_name)
+        import vlc
+        self._vlc = vlc
+        self._player = vlc.MediaPlayer(file_name)
+        media = vlc.Media(file_name)
+        self._player.set_media(media)
+        media.parse()
+        self._duration_ms: int = media.get_duration()
+        if sys.platform == 'win32':
+            # Con l'output di default (mmdevice) audio_set_volume agisce sul
+            # volume della sessione audio di Windows, CONDIVISO da tutti i
+            # player del processo (verificato su libVLC 3.0.23: "version 2
+            # session control unavailable"). DirectSound attenua per-stream,
+            # quindi ogni player resta indipendente.
+            # NB: va chiamato DOPO set_media — set_media resetta la scelta
+            # dell'output e la selezione andrebbe persa.
+            self._player.audio_output_set('directsound')
 
     def play(self) -> None:
-        if self._stub: self._stub.play(); return
+        # Dopo Ended, libVLC non riparte con un semplice play(): serve prima
+        # uno stop() che riporta il player in uno stato riproducibile.
+        if self._player.get_state() == self._vlc.State.Ended:
+            self._player.stop()
         self._player.play()
 
     def pause(self) -> None:
-        if self._stub: self._stub.pause(); return
         self._player.pause()
 
     def stop(self) -> None:
-        if self._stub: self._stub.stop(); return
         self._player.stop()
 
-    def is_playing(self) -> bool:
-        if self._stub: return self._stub.is_playing()
-        return self._player.get_state() == self._vlc.State.Playing
-
     def get_state(self) -> PlaybackState:
-        if self._stub: return self._stub.get_state()
         s = self._player.get_state()
         if s == self._vlc.State.Playing:
             return PlaybackState.PLAYING
@@ -243,68 +248,55 @@ class _VlcBackend(_PlaybackBackend):
             return PlaybackState.PAUSED
         if s == self._vlc.State.Ended:
             return PlaybackState.ENDED
-        if s == self._vlc.State.Error:
-            return PlaybackState.ERROR
         return PlaybackState.STOPPED
 
     def get_time_ms(self) -> int:
-        if self._stub: return self._stub.get_time_ms()
         return self._player.get_time()
 
     def get_duration_ms(self) -> int:
-        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ms
 
     def set_position(self, position: float) -> None:
-        if self._stub: self._stub.set_position(position); return
         self._player.set_position(position)
 
     def get_position(self) -> float:
-        if self._stub: return self._stub.get_position()
         return self._player.get_position()
 
     def set_volume(self, volume: int) -> None:
-        if self._stub: self._stub.set_volume(volume); return
         self._player.audio_set_volume(max(0, min(100, volume)))
 
     def release(self) -> None:
-        if self._stub: return
         self._player.release()
 
 
 class _GStreamerBackend(_PlaybackBackend):
     def __init__(self, file_name: str):
-        self._stub: _StubBackend | None = None
-        try:
-            import gi  # type: ignore[import]
-            gi.require_version('Gst', '1.0')
-            from gi.repository import Gst  # type: ignore[import]
-            Gst.init(None)
-            self._Gst = Gst
+        import gi  # type: ignore[import]
+        gi.require_version('Gst', '1.0')
+        from gi.repository import Gst  # type: ignore[import]
+        Gst.init(None)
+        self._Gst = Gst
 
-            self._player = Gst.ElementFactory.make('playbin', 'player')
-            if self._player is None:
-                raise RuntimeError(
-                    "Impossibile creare l'elemento GStreamer 'playbin'. "
-                    "Verifica che gstreamer1.0-plugins-base sia installato."
-                )
+        self._player = Gst.ElementFactory.make('playbin', 'player')
+        if self._player is None:
+            raise RuntimeError(
+                "Impossibile creare l'elemento GStreamer 'playbin'. "
+                "Verifica che gstreamer1.0-plugins-base sia installato."
+            )
 
-            import pathlib
-            self._player.set_property('uri', pathlib.Path(file_name).as_uri())
-            self._volume = 100
-            self._player.set_property('volume', 1.0)
-            self._eos = False
+        import pathlib
+        self._player.set_property('uri', pathlib.Path(file_name).as_uri())
+        self._volume = 100
+        self._player.set_property('volume', 1.0)
+        self._eos = False
 
-            # Transition to PAUSED to resolve duration, then back to NULL
-            self._player.set_state(Gst.State.PAUSED)
-            self._player.get_state(Gst.CLOCK_TIME_NONE)
-            ok, self._duration_ns = self._player.query_duration(Gst.Format.TIME)
-            if not ok:
-                self._duration_ns = 0
-            self._player.set_state(Gst.State.NULL)
-        except Exception as exc:
-            logger.warning("GStreamer unavailable, using stub: %s", exc)
-            self._stub = _StubBackend("gstreamer", file_name)
+        # Transition to PAUSED to resolve duration, then back to NULL
+        self._player.set_state(Gst.State.PAUSED)
+        self._player.get_state(Gst.CLOCK_TIME_NONE)
+        ok, self._duration_ns = self._player.query_duration(Gst.Format.TIME)
+        if not ok:
+            self._duration_ns = 0
+        self._player.set_state(Gst.State.NULL)
 
     def _check_eos(self) -> bool:
         bus = self._player.get_bus()
@@ -317,30 +309,19 @@ class _GStreamerBackend(_PlaybackBackend):
         return self._eos
 
     def play(self) -> None:
-        if self._stub: self._stub.play(); return
         self._eos = False
         self._player.set_state(self._Gst.State.NULL)
         self._player.set_state(self._Gst.State.PLAYING)
 
     def pause(self) -> None:
-        if self._stub: self._stub.pause(); return
         self._player.set_state(self._Gst.State.PAUSED)
 
     def stop(self) -> None:
-        if self._stub: self._stub.stop(); return
         self._eos = False
         self._player.set_state(self._Gst.State.NULL)
         self._player.set_state(self._Gst.State.READY)
 
-    def is_playing(self) -> bool:
-        if self._stub: return self._stub.is_playing()
-        if self._check_eos():
-            return False
-        _, state, _ = self._player.get_state(0)
-        return state == self._Gst.State.PLAYING
-
     def get_state(self) -> PlaybackState:
-        if self._stub: return self._stub.get_state()
         if self._check_eos():
             return PlaybackState.ENDED
         _, state, _ = self._player.get_state(0)
@@ -351,18 +332,15 @@ class _GStreamerBackend(_PlaybackBackend):
         return PlaybackState.STOPPED
 
     def get_time_ms(self) -> int:
-        if self._stub: return self._stub.get_time_ms()
         ok, pos_ns = self._player.query_position(self._Gst.Format.TIME)
         if not ok or pos_ns < 0:
             return 0
         return pos_ns // 1_000_000
 
     def get_duration_ms(self) -> int:
-        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ns // 1_000_000
 
     def set_position(self, position: float) -> None:
-        if self._stub: self._stub.set_position(position); return
         pos_ns = int(position * self._duration_ns)
         self._player.seek_simple(
             self._Gst.Format.TIME,
@@ -371,7 +349,6 @@ class _GStreamerBackend(_PlaybackBackend):
         )
 
     def get_position(self) -> float:
-        if self._stub: return self._stub.get_position()
         if self._duration_ns == 0:
             return 0.0
         ok, pos_ns = self._player.query_position(self._Gst.Format.TIME)
@@ -380,39 +357,31 @@ class _GStreamerBackend(_PlaybackBackend):
         return pos_ns / self._duration_ns
 
     def set_volume(self, volume: int) -> None:
-        if self._stub: self._stub.set_volume(volume); return
         self._volume = max(0, min(100, volume))
         self._player.set_property('volume', self._volume / 100.0)
 
     def release(self) -> None:
-        if self._stub: return
         self._player.set_state(self._Gst.State.NULL)
 
 
 class _MpvBackend(_PlaybackBackend):
     def __init__(self, file_name: str):
-        self._stub: _StubBackend | None = None
+        import mpv  # type: ignore[import]
+        self._file_name = file_name
+        self._stopped = True
+        self._player = mpv.MPV()
+        self._player.pause = True
+        self._player.play(file_name)
+        # Block briefly until duration is resolved (mpv runs its own event thread)
         try:
-            import mpv  # type: ignore[import]
-            self._file_name = file_name
-            self._stopped = True
-            self._player = mpv.MPV()
-            self._player.pause = True
-            self._player.play(file_name)
-            # Block briefly until duration is resolved (mpv runs its own event thread)
-            try:
-                self._player.wait_for_property('duration', lambda d: d is not None and d > 0, timeout=5)
-            except Exception:
-                deadline = time.monotonic() + 5.0
-                while self._player.duration is None and time.monotonic() < deadline:
-                    time.sleep(0.05)
-            self._duration_ms = int((self._player.duration or 0.0) * 1000)
-        except Exception as exc:
-            logger.warning("MPV unavailable, using stub: %s", exc)
-            self._stub = _StubBackend("mpv", file_name)
+            self._player.wait_for_property('duration', lambda d: d is not None and d > 0, timeout=5)
+        except Exception:
+            deadline = time.monotonic() + 5.0
+            while self._player.duration is None and time.monotonic() < deadline:
+                time.sleep(0.05)
+        self._duration_ms = int((self._player.duration or 0.0) * 1000)
 
     def play(self) -> None:
-        if self._stub: self._stub.play(); return
         if self._player.core_idle and not self._player.pause:
             # File ended — reload from start
             self._player.play(self._file_name)
@@ -426,11 +395,9 @@ class _MpvBackend(_PlaybackBackend):
         self._player.pause = False
 
     def pause(self) -> None:
-        if self._stub: self._stub.pause(); return
         self._player.pause = True
 
     def stop(self) -> None:
-        if self._stub: self._stub.stop(); return
         self._stopped = True
         self._player.pause = True
         try:
@@ -438,12 +405,7 @@ class _MpvBackend(_PlaybackBackend):
         except Exception:
             pass
 
-    def is_playing(self) -> bool:
-        if self._stub: return self._stub.is_playing()
-        return not self._stopped and not self._player.pause and not self._player.core_idle
-
     def get_state(self) -> PlaybackState:
-        if self._stub: return self._stub.get_state()
         if self._stopped:
             return PlaybackState.STOPPED
         if self._player.core_idle and not self._player.pause:
@@ -453,56 +415,149 @@ class _MpvBackend(_PlaybackBackend):
         return PlaybackState.PLAYING
 
     def get_time_ms(self) -> int:
-        if self._stub: return self._stub.get_time_ms()
         pos = self._player.time_pos
         return int(pos * 1000) if pos is not None else 0
 
     def get_duration_ms(self) -> int:
-        if self._stub: return self._stub.get_duration_ms()
         return self._duration_ms
 
     def set_position(self, position: float) -> None:
-        if self._stub: self._stub.set_position(position); return
         self._player.seek(position * (self._duration_ms / 1000.0), reference='absolute')
 
     def get_position(self) -> float:
-        if self._stub: return self._stub.get_position()
         if self._duration_ms == 0:
             return 0.0
         return self.get_time_ms() / self._duration_ms
 
     def set_volume(self, volume: int) -> None:
-        if self._stub: self._stub.set_volume(volume); return
         self._player.volume = float(max(0, min(100, volume)))
 
     def release(self) -> None:
-        if self._stub: return
         self._player.terminate()
 
 
+class _QtBackend(_PlaybackBackend):
+    """Backend QMediaPlayer (PyQt5.QtMultimedia). Nessuna dipendenza oltre
+    PyQt5: su Windows usa DirectShow/WMF nativi, su Linux GStreamer.
+
+    A differenza dei backend C (vlc/mpv/gstreamer), QMediaPlayer è un QObject
+    con affinità di thread: va creato sul main thread (REQUIRES_MAIN_THREAD).
+    L'init non blocca: il media viene caricato in modo asincrono e la durata
+    arriva dopo — Mp3File.get_playback_info la rilegge finché non è nota.
+
+    Il volume è software e per-player: indipendente per costruzione, senza
+    i problemi di sessione dell'output mmdevice di VLC su Windows.
+
+    Quirk noto (DirectShow/Windows): il seek in PAUSA può essere applicato
+    solo alla ripresa della riproduzione; in play è affidabile.
+    """
+
+    REQUIRES_MAIN_THREAD: bool = True
+
+    def __init__(self, file_name: str):
+        from PyQt5.QtCore import QUrl
+        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QAudio
+        self._QMediaPlayer = QMediaPlayer
+        self._QMediaContent = QMediaContent
+        self._QAudio = QAudio
+        self._player = QMediaPlayer()
+        self._player.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(file_name))))
+        self._volume = 100
+        self._player.setVolume(100)
+
+    def play(self) -> None:
+        # Dopo la fine del brano si riparte dall'inizio.
+        if self._player.mediaStatus() == self._QMediaPlayer.EndOfMedia:
+            self._player.setPosition(0)
+        self._player.play()
+
+    def pause(self) -> None:
+        self._player.pause()
+
+    def stop(self) -> None:
+        self._player.stop()
+
+    def get_state(self) -> PlaybackState:
+        if self._player.mediaStatus() == self._QMediaPlayer.EndOfMedia:
+            return PlaybackState.ENDED
+        s = self._player.state()
+        if s == self._QMediaPlayer.PlayingState:
+            return PlaybackState.PLAYING
+        if s == self._QMediaPlayer.PausedState:
+            return PlaybackState.PAUSED
+        return PlaybackState.STOPPED
+
+    def get_time_ms(self) -> int:
+        return int(self._player.position())
+
+    def get_duration_ms(self) -> int:
+        # 0 finché il media non è caricato (arriva async via durationChanged).
+        return max(0, int(self._player.duration()))
+
+    def set_position(self, position: float) -> None:
+        duration = self._player.duration()
+        if duration > 0:
+            self._player.setPosition(int(max(0.0, min(1.0, position)) * duration))
+
+    def get_position(self) -> float:
+        duration = self._player.duration()
+        if duration <= 0:
+            return 0.0
+        return self._player.position() / duration
+
+    def set_volume(self, volume: int) -> None:
+        self._volume = max(0, min(100, int(volume)))
+        # Curva percettiva (pattern raccomandato da Qt): il valore dello
+        # slider è trattato come scala logaritmica e convertito in lineare
+        # per setVolume — a metà slider corrisponde metà volume percepito.
+        linear = self._QAudio.convertVolume(self._volume / 100.0,
+                                            self._QAudio.LogarithmicVolumeScale,
+                                            self._QAudio.LinearVolumeScale)
+        self._player.setVolume(round(linear * 100))
+
+    def release(self) -> None:
+        self._player.stop()
+        self._player.setMedia(self._QMediaContent())
+        self._player.deleteLater()
+
 
 class _BackendLoader(QThread):
+    """Istanzia il backend in background. Se la libreria reale non è
+    disponibile ripiega su _StubBackend (UI funzionante, nessun audio);
+    `error` scatta solo se anche lo stub fallisce."""
+
     ready = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, cls, file_name: str, parent=None):
-        super().__init__(parent)
+    def __init__(self, name: str, cls, file_name: str):
+        super().__init__()
+        self._name = name
         self._cls = cls
         self._file_name = file_name
 
     def run(self):
         try:
-            self.ready.emit(self._cls(self._file_name))
-        except Exception as e:
-            self.error.emit(str(e))
+            backend = self._cls(self._file_name)
+        except Exception as exc:
+            logger.warning("%s unavailable, using stub: %s", self._name, exc)
+            try:
+                backend = _StubBackend(self._name, self._file_name)
+            except Exception as e:
+                self.error.emit(str(e))
+                return
+        self.ready.emit(backend)
 
 
 _BACKENDS = {
     'vlc': _VlcBackend,
     'gstreamer': _GStreamerBackend,
-    'gst': _GStreamerBackend,
     'mpv': _MpvBackend,
+    'qt': _QtBackend,
+}
 
+_BACKEND_ALIASES = {
+    'gst': 'gstreamer',
+    'qmediaplayer': 'qt',
 }
 
 
@@ -523,6 +578,7 @@ class Mp3File(QObject):
     loaded = pyqtSignal()
     load_error = pyqtSignal(str)
     normalize_ready = pyqtSignal(float)  # emesso con il gain calcolato
+    normalize_failed = pyqtSignal(str)
 
     def __init__(self, file_name: str, backend: str = 'vlc'):
         super().__init__()
@@ -532,39 +588,53 @@ class Mp3File(QObject):
         self.mp3_total_duration = 0
         self.actual_volume = 100
         self.gain: float = 1.0
-        self._rms_thread: RmsAnalyzerThread | None = None
+        self._peak_thread: PeakAnalyzerThread | None = None
+        self._fade_restore_volume: int | None = None
+        self._closed = False
 
         backend_key = backend.lower()
+        backend_key = _BACKEND_ALIASES.get(backend_key, backend_key)
         if backend_key not in _BACKENDS:
             raise ValueError(
                 f"Backend '{backend}' non riconosciuto. "
                 f"Disponibili: {', '.join(available_backends())}"
             )
 
-        self._loader = _BackendLoader(_BACKENDS[backend_key], file_name, parent=self)
-        self._loader.ready.connect(self._on_backend_ready)
-        self._loader.error.connect(self._on_backend_error)
-        self._loader.start()
+        cls = _BACKENDS[backend_key]
+        if cls.REQUIRES_MAIN_THREAD:
+            # Backend Qt (QObject): va creato nel thread della GUI. L'init
+            # non blocca; loaded viene emesso al prossimo giro di event loop
+            # così i connect del widget avvengono prima del segnale.
+            self._loader = None
+            try:
+                backend = cls(file_name)
+            except Exception as exc:
+                logger.warning("%s unavailable, using stub: %s", backend_key, exc)
+                backend = _StubBackend(backend_key, file_name)
+            QTimer.singleShot(0, lambda: self._on_backend_ready(backend))
+        else:
+            self._loader = _BackendLoader(backend_key, cls, file_name)
+            self._loader.ready.connect(self._on_backend_ready)
+            self._loader.error.connect(self._on_backend_error)
+            retain(self._loader)
+            self._loader.start()
 
     def _on_backend_ready(self, backend: _PlaybackBackend):
+        self._loader = None
+        if self._closed:
+            # cleanup() è già passato: rilascia subito senza attivare nulla.
+            backend.release()
+            return
         self._backend = backend
         self.mp3_total_duration = self._backend.get_duration_ms()
         self._backend.set_volume(self._effective_volume())
-        self._loader = None
         self.loaded.emit()
 
     def _on_backend_error(self, message: str):
         logger.error(f"Impossibile inizializzare il backend: {message}")
         self._loader = None
-        self.load_error.emit(message)
-
-    def is_ready(self) -> bool:
-        return self._backend is not None
-
-    def get_state(self) -> PlaybackState:
-        if self._backend is None:
-            return PlaybackState.STOPPED
-        return self._backend.get_state()
+        if not self._closed:
+            self.load_error.emit(message)
 
     def is_playing(self) -> bool:
         if self._backend is None:
@@ -574,6 +644,10 @@ class Mp3File(QObject):
     def get_playback_info(self) -> dict | None:
         if self._backend is None:
             return None
+        if self.mp3_total_duration <= 0:
+            # Alcuni backend (QMediaPlayer) comunicano la durata solo dopo il
+            # caricamento asincrono del media: rileggila finché non è nota.
+            self.mp3_total_duration = self._backend.get_duration_ms()
         state = self._backend.get_state()
         if state not in (PlaybackState.PLAYING, PlaybackState.PAUSED):
             return None
@@ -593,6 +667,9 @@ class Mp3File(QObject):
             return
         try:
             if self.is_playing():
+                # La pausa manuale interrompe un eventuale fade in corso:
+                # il volume viene riallineato al valore dello slider.
+                self._stop_active_fade()
                 self._backend.pause()
                 self.playback_state_changed.emit('paused')
             else:
@@ -608,6 +685,7 @@ class Mp3File(QObject):
     def stop(self):
         if self._backend is None:
             return
+        self._stop_active_fade()
         try:
             self._backend.stop()
             self.playback_state_changed.emit('stopped')
@@ -616,9 +694,17 @@ class Mp3File(QObject):
             raise
 
     def _stop_active_fade(self):
+        """Ferma il fade attivo e riallinea il volume al valore "slider"
+        associato al fade (fade-in: volume finale; fade-out: volume di
+        partenza). Così qualsiasi interruzione — stop, pausa, nuovo fade —
+        lascia volume e slider coerenti."""
         if self.fade_controller is not None:
             self.fade_controller.stop()
             self.fade_controller = None
+        restore = self._fade_restore_volume
+        self._fade_restore_volume = None
+        if restore is not None:
+            self.set_volume(restore)
 
     def fade_in(self, duration, end_volume):
         """Avvia la riproduzione partendo da volume 0 e sale fino a `end_volume`
@@ -634,11 +720,17 @@ class Mp3File(QObject):
         # (altrimenti l'audio parte all'actual_volume corrente per qualche ms).
         self.set_volume(0)
         self._backend.play()
+        if self._backend.NEEDS_VOLUME_REAPPLY_ON_PLAY:
+            # Stesso workaround di play_pause: senza, VLC riparte a volume
+            # pieno finché l'output audio non è inizializzato.
+            QTimer.singleShot(FADE_STARTUP_DELAY_MS,
+                              lambda: self.set_volume(self.actual_volume))
         self.fade_in_started.emit()
         self.playback_state_changed.emit('playing')
         self.fade_controller = FadeController(duration, 0, end_volume)
+        self._fade_restore_volume = int(end_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
-        self.fade_controller.finished.connect(self.fadeInFinished.emit)
+        self.fade_controller.finished.connect(self._on_fade_in_finished)
         # Piccolo delay perché il backend abbia tempo di iniziare l'output
         # prima che il fade cominci a salire — altrimenti i primi step del
         # fade vanno sprecati su audio non ancora udibile.
@@ -650,6 +742,11 @@ class Mp3File(QObject):
         a newer fade superseding this one in the 100ms window)."""
         if controller is self.fade_controller:
             controller.start()
+
+    def _on_fade_in_finished(self):
+        self.fade_controller = None
+        self._fade_restore_volume = None
+        self.fadeInFinished.emit()
 
     def fade_out(self, duration, start_volume, end_volume):
         """Scende dal volume corrente `start_volume` a `end_volume` (tipicamente 0)
@@ -665,11 +762,16 @@ class Mp3File(QObject):
             return
         self._stop_active_fade()
         self.fade_controller = FadeController(duration, start_volume, end_volume)
+        self._fade_restore_volume = int(start_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
-        self.fade_controller.finished.connect(self.fadeOutFinished.emit)
-        self.fade_controller.finished.connect(self.stop)
-        self.fade_controller.finished.connect(lambda: self.set_volume(start_volume))
+        self.fade_controller.finished.connect(self._on_fade_out_finished)
         self.fade_controller.start()
+
+    def _on_fade_out_finished(self):
+        self.fadeOutFinished.emit()
+        # stop() passa da _stop_active_fade, che ripristina il volume di
+        # partenza come volume memorizzato per il prossimo play.
+        self.stop()
 
     def _effective_volume(self) -> int:
         return max(0, min(100, int(self.actual_volume * self.gain)))
@@ -701,13 +803,16 @@ class Mp3File(QObject):
         logger.debug(f"set_gain: {self.gain:.3f}  actual: {self.actual_volume}  effective: {self._effective_volume()}")
 
     def normalize(self) -> None:
-        """Avvia l'analisi peak in background; emette normalize_ready(gain) quando pronta."""
-        if self._rms_thread is not None and self._rms_thread.isRunning():
+        """Avvia l'analisi peak in background; emette normalize_ready(gain)
+        quando pronta, normalize_failed(msg) se l'analisi fallisce."""
+        if self._peak_thread is not None and self._peak_thread.isRunning():
             return
-        self._rms_thread = RmsAnalyzerThread(self.file_name)
-        self._rms_thread.analysis_done.connect(self.normalize_ready)
-        self._rms_thread.finished.connect(lambda: setattr(self, '_rms_thread', None))
-        self._rms_thread.start()
+        self._peak_thread = PeakAnalyzerThread(self.file_name)
+        self._peak_thread.analysis_done.connect(self.normalize_ready)
+        self._peak_thread.analysis_failed.connect(self.normalize_failed)
+        self._peak_thread.finished.connect(lambda: setattr(self, '_peak_thread', None))
+        retain(self._peak_thread)
+        self._peak_thread.start()
 
     def get_volume(self):
         return self.actual_volume
@@ -722,18 +827,19 @@ class Mp3File(QObject):
         return self._backend.get_position()
 
     def cleanup(self):
-        if self._loader is not None:
-            self._loader.quit()
-            self._loader.wait()
-            self._loader = None
-        if self._rms_thread is not None:
-            try:
-                self._rms_thread.analysis_done.disconnect()
-            except (TypeError, RuntimeError):
-                pass
-            self._rms_thread.quit()
-            self._rms_thread.wait()
-            self._rms_thread = None
+        """Rilascia il backend e scollega i task in background, senza mai
+        bloccare: i thread ancora in volo restano vivi nel thread_registry
+        e i loro risultati vengono ignorati grazie a `_closed`."""
+        self._closed = True
+        self._stop_active_fade()
+        self._loader = None  # se sta ancora girando, _on_backend_ready rilascerà il backend
+        if self._peak_thread is not None:
+            for sig in (self._peak_thread.analysis_done, self._peak_thread.analysis_failed):
+                try:
+                    sig.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
+            self._peak_thread = None
         if self._backend is not None:
             self.stop()
             self._backend.release()

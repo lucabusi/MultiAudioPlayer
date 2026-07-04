@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
 from waveform_service import WaveformService
-from __init__ import PROGRESS_BAR_HEIGHT
+from constants import PROGRESS_BAR_HEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +20,6 @@ class WidgetLayout(Enum):
 
 def seconds_to_min_sec(seconds: int) -> str:
     return f"{seconds // 60:02}:{seconds % 60:02}"
-
-
-class Mp3WidgetMimeData(QMimeData):
-    def __init__(self):
-        super().__init__()
-        self.widget = None
-
-    def setWidget(self, widget):
-        self.widget = widget
-
-    def getWidget(self):
-        return self.widget
 
 
 class ClickableProgressBar(QProgressBar):
@@ -85,8 +73,10 @@ class Mp3Widget(QWidget):
         self.mp3file.fade_in_started.connect(self._on_fade_in_started)
         self.mp3file.fadeInFinished.connect(self._on_fade_in_finished)
         self.mp3file.normalize_ready.connect(self._on_normalize_ready)
+        self.mp3file.normalize_failed.connect(self._on_normalize_failed)
+        self.mp3file.loaded.connect(self._on_loaded)
+        self.mp3file.load_error.connect(self._on_load_error)
 
-        self.volume_slider_value = self.mp3file.actual_volume
         self.fade_time = 5
         self.widgetLayout = layout
         self.current_layout_name = self.widgetLayout.name
@@ -98,10 +88,6 @@ class Mp3Widget(QWidget):
 
         self.create_ui_elements()
         self.apply_layout()
-
-        self._progress_error_count = 0
-        self._MAX_PROGRESS_ERRORS = 10
-        self._polling_disabled = False
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.defaultBtnStyle = "border: 1px solid; border-radius: 5px;"
@@ -130,9 +116,9 @@ class Mp3Widget(QWidget):
         self._drag_armed = False  # one drag per press
 
         drag = QDrag(self)
-        mime_data = Mp3WidgetMimeData()
-        mime_data.setWidget(self)
-        drag.setMimeData(mime_data)
+        # Drag interno alla stessa app: il widget sorgente viaggia come
+        # event.source(), non serve un QMimeData custom.
+        drag.setMimeData(QMimeData())
 
         pixmap = QPixmap(self.size())
         self.render(pixmap)
@@ -195,7 +181,7 @@ class Mp3Widget(QWidget):
         self.slidVolume = QSlider(Qt.Vertical)
         self.slidVolume.setMinimum(0)
         self.slidVolume.setMaximum(100)
-        self.slidVolume.setValue(self.volume_slider_value)
+        self.slidVolume.setValue(self.mp3file.actual_volume)
         self.slidVolume.valueChanged.connect(self.update_volume)
         self.lblVolume = QLabel("100")
         self.lblVolume.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
@@ -206,9 +192,9 @@ class Mp3Widget(QWidget):
         self.spinboxGain.setValue(self.mp3file.gain)
         self.spinboxGain.setPrefix("G:")
         self.spinboxGain.valueChanged.connect(self._on_gain_changed)
-        self.lblElapsedTime = QLabel("Elapsed time: 00:00")
+        self.lblElapsedTime = QLabel("Elapsed Time: 00:00")
         self.lblElapsedTime.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self.lblRemainingTime = QLabel(f"Remaining time: {seconds_to_min_sec(int(self.mp3file.mp3_total_duration / 1000))}")
+        self.lblRemainingTime = QLabel(f"Remaining Time: {seconds_to_min_sec(int(self.mp3file.mp3_total_duration / 1000))}")
         self.btnFadePreset1 = QPushButton("1")
         self.btnFadePreset1.clicked.connect(lambda: self.spinboxFadeTime.setValue(1))
         self.btnFadePreset2 = QPushButton("3")
@@ -267,10 +253,11 @@ class Mp3Widget(QWidget):
                 w.setParent(None)
 
         # Reset column e row stretches: i singoli helper li riconfigurano
-        # secondo il layout, ma vanno azzerati prima per evitare residui di TOUCH.
-        for c in range(12):
+        # secondo il layout, ma vanno azzerati prima per evitare residui
+        # del layout precedente.
+        for c in range(self.widget_file_frame_layout.columnCount()):
             self.widget_file_frame_layout.setColumnStretch(c, 0)
-        for r in range(8):
+        for r in range(self.widget_file_frame_layout.rowCount()):
             self.widget_file_frame_layout.setRowStretch(r, 0)
 
         # SizePolicy default del widget; COMPACT_V la sovrascrive ad Expanding vert.
@@ -369,14 +356,6 @@ class Mp3Widget(QWidget):
                     self.btnChangeLayout):
             btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # 2 colonne, entrambe espandibili equamente.
-        #layout.setColumnStretch(0, 1)
-        #layout.setColumnStretch(1, 1)
-
-        # Solo la riga del fader cresce verticalmente; le altre stanno alla
-        # propria altezza naturale.
-        # layout.setRowStretch(4, 1)
-
         # Riga 0: layout-switch + remove
         layout.addWidget(self.btnChangeLayout, 0, 2, 1, 2)
         layout.addWidget(self.btnRemove, 0, 0, 1, 2)
@@ -443,6 +422,20 @@ class Mp3Widget(QWidget):
 
     def _on_fade_in_finished(self):
         self.changeButtonStyle(self.btnFadeIn, "")
+
+    def _on_loaded(self):
+        """Il backend è pronto: la durata reale è ora disponibile."""
+        self.lblRemainingTime.setText(
+            f"Remaining Time: {seconds_to_min_sec(round(self.mp3file.mp3_total_duration / 1000))}")
+
+    def _on_load_error(self, message: str):
+        """Backend non inizializzabile: disabilita i controlli e segnala l'errore."""
+        logger.error(f"Load error for {self.mp3file.file_name}: {message}")
+        self.filename_label.setText(f"⚠ {os.path.basename(self.mp3file.file_name)}")
+        self.filename_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self.filename_label.setToolTip(f"Errore caricamento backend: {message}")
+        for w in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut, self.btnNorm):
+            w.setEnabled(False)
 
     def on_play_pause_clicked(self):
         self.mp3file.play_pause()
@@ -537,6 +530,10 @@ class Mp3Widget(QWidget):
         self.spinboxGain.setValue(gain)  # triggera _on_gain_changed
         self.btnNorm.setEnabled(True)
 
+    def _on_normalize_failed(self, message: str):
+        logger.error(f"Normalize failed for {self.mp3file.file_name}: {message}")
+        self.btnNorm.setEnabled(True)
+
     def on_fade_in_clicked(self):
         self.mp3file.fade_in(self.fade_time, self.slidVolume.value())
 
@@ -549,20 +546,7 @@ class Mp3Widget(QWidget):
         self.mp3file.set_position(new_position)
 
     def update_progress_bar(self):
-        if self._polling_disabled:
-            return
-        try:
-            info = self.mp3file.get_playback_info()
-        except Exception as e:
-            self._progress_error_count += 1
-            logger.debug(f"poll error {self._progress_error_count}: {e}")
-            if self._progress_error_count >= self._MAX_PROGRESS_ERRORS:
-                logger.warning(
-                    f"Polling disabilitato dopo {self._MAX_PROGRESS_ERRORS} errori consecutivi in update_progress_bar."
-                )
-                self._polling_disabled = True
-            return
-        self._progress_error_count = 0
+        info = self.mp3file.get_playback_info()
         if info is not None:
             self.progress_bar.setValue(int(info['position'] * self.progress_bar.maximum()))
             self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(info['current_seconds'])}")
@@ -582,6 +566,7 @@ class Mp3Widget(QWidget):
         self.progress_bar.setFixedHeight(PROGRESS_BAR_HEIGHT)
         self.progress_bar.setMaximum(1000)
         self.progress_bar.clicked.connect(self.update_playback_position)
-        pixmap = self._waveform_service.generate(self.mp3file.file_name)
-        self.progress_bar.set_waveform(pixmap)
+        # La waveform arriva in background via waveform_upgraded; fino ad
+        # allora la barra dipinge il fondo piatto.
+        self._waveform_service.generate(self.mp3file.file_name)
         return self.progress_bar

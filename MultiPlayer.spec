@@ -9,6 +9,7 @@ block_cipher = None
 
 # Tutti i moduli locali del progetto, elencati esplicitamente
 local_modules = [
+    'constants',
     'grid_manager',
     'mainapp',
     'mp3file',
@@ -27,7 +28,7 @@ local_modules = [
 
 # Librerie tipicamente usate per audio + GUI con waveform:
 # scegli quelle effettivamente importate dal tuo progetto
-extra_hidden = []
+extra_hidden = ['PyQt5.QtMultimedia']  # import lazy nel backend 'qt' (mp3file._QtBackend)
 # extra_hidden += collect_submodules('PyQt5')      # se usi PyQt5
 # extra_hidden += collect_submodules('PySide6')    # se usi PySide6
 # extra_hidden += collect_submodules('pydub')      # se usi pydub

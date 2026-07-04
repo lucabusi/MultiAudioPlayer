@@ -83,7 +83,7 @@ def _generate_waveform(file_name, file_duration):
     plt.plot(np.linspace(0, file_duration, len(audio)), audio,
              color='b', linewidth=0.1)
     plt.ylim(-1, 1)
-    path = wf._waveform_cache_path(file_name)
+    path = wf._envelope_cache_path(file_name) + '.jpg'
     plt.savefig(path, format='jpeg', dpi=150)
     plt.close()
     return path
@@ -97,7 +97,7 @@ def _generate_waveform_rosa(file_name, file_duration):
     librosa.display.waveshow(audio, sr=target_sr, axis=None,
                              color='b', linewidth=0.1)
     plt.ylim(-1, 1)
-    path = wf._waveform_cache_path(file_name)
+    path = wf._envelope_cache_path(file_name) + '.jpg'
     plt.savefig(path, format='jpeg', dpi=150)
     plt.close()
     return path
@@ -118,7 +118,7 @@ def _generate_waveform_pillow(file_name, file_duration, width=1500,
         y1 = int(center + min_val * center)
         y2 = int(center + max_val * center)
         draw.line([(x, y1), (x, y2)], fill="blue")
-    path = wf._waveform_cache_path(file_name)
+    path = wf._envelope_cache_path(file_name) + '.jpg'
     img.save(path, 'JPEG')
     return path
 
@@ -126,7 +126,7 @@ def _generate_waveform_pillow(file_name, file_duration, width=1500,
 def _generate_waveform_HS(file_name, file_duration, width=1500,
                           height=75, target_sr=11025):
     """Legacy: soundfile + numpy reshape + PIL canvas, restituisce path."""
-    path = wf._waveform_cache_path(file_name)
+    path = wf._envelope_cache_path(file_name) + '.jpg'
     samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
     if samples.ndim > 1:
         samples = samples.mean(axis=1)

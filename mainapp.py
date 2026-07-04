@@ -8,7 +8,7 @@ from mp3file import Mp3File
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
-from __init__ import POLL_INTERVAL_MS
+from constants import POLL_INTERVAL_MS
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +87,7 @@ class MainApp(QMainWindow):
 
         self.initial_rows = 5
         self.initial_cols = 2
-        self.backend = 'vlc'
-
-#       self.backend = 'vlc'        # default
-#       self.backend = 'gstreamer'
-#       self.backend = 'mpv'
+        self.backend = 'qt'  # 'vlc' | 'qt' | 'gstreamer' | 'mpv' (vedi mp3file._BACKENDS)
 
         self.init_ui()
 
@@ -154,8 +150,8 @@ class MainApp(QMainWindow):
         self.show()
 
     def _on_container_drag_enter(self, event):
-        from mp3widget import Mp3WidgetMimeData
-        if isinstance(event.mimeData(), Mp3WidgetMimeData):
+        # Drag interno alla stessa app: la sorgente è il widget stesso.
+        if isinstance(event.source(), Mp3Widget):
             event.acceptProposedAction()
 
     def _get_drop_target_rect(self, pos):
@@ -166,12 +162,11 @@ class MainApp(QMainWindow):
         return self.grid_layout.cellRect(r, c)
 
     def _on_container_drop(self, event):
-        from mp3widget import Mp3WidgetMimeData
-        if not isinstance(event.mimeData(), Mp3WidgetMimeData):
+        source_widget = event.source()
+        if not isinstance(source_widget, Mp3Widget):
             event.ignore()
             return
 
-        source_widget = event.mimeData().getWidget()
         target_pos = event.pos()
         target_row, target_col = self.grid_manager.get_cell_at_pos(target_pos)
         if target_row == -1:
@@ -217,17 +212,22 @@ class MainApp(QMainWindow):
                 self.grid_layout.addWidget(mp3_widget, row, col)
                 self.grid_manager.update_column_stretches()
 
-    def save_project(self):
+    def save_project(self) -> bool:
+        """Salva il progetto. Ritorna True solo a salvataggio riuscito
+        (False se l'utente annulla il dialog o il salvataggio fallisce)."""
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Project Files (*.mpp)", options=options)
 
-        if file_name:
-            try:
-                self.project_manager.save(self.mp3_widgets, self.grid_layout, self.geometry(), file_name)
-                logger.info(f"Project saved successfully to {file_name}")
-            except Exception as e:
-                logger.error(f"Error saving project: {e}")
-                QMessageBox.critical(self, "Error", f"Failed to save project: {str(e)}")
+        if not file_name:
+            return False
+        try:
+            self.project_manager.save(self.mp3_widgets, self.grid_layout, self.geometry(), file_name)
+            logger.info(f"Project saved successfully to {file_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving project: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to save project: {str(e)}")
+            return False
 
     def load_project(self):
         options = QFileDialog.Options()
@@ -323,8 +323,11 @@ class MainApp(QMainWindow):
             if reply == QMessageBox.Cancel:
                 event.ignore()
                 return
-            if reply == QMessageBox.Save:
-                self.save_project()
+            if reply == QMessageBox.Save and not self.save_project():
+                # Salvataggio annullato o fallito: non chiudere, altrimenti
+                # l'utente perderebbe il progetto che ha chiesto di salvare.
+                event.ignore()
+                return
         self._progress_timer.stop()
         for widget in list(self.mp3_widgets):
             widget.shutdown()

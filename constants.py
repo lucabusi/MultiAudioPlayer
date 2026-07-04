@@ -1,8 +1,6 @@
 """Costanti condivise dal progetto.
 
-Importate dai moduli con `from __init__ import ...`. Il file è anche
-auto-eseguito se la directory viene importata come package, ma l'app
-in produzione importa i moduli flat (vedi MultiPlayer.py).
+Importate dai moduli con `from constants import ...`.
 """
 
 # --- UI ---
@@ -16,5 +14,4 @@ WAVEFORM_DEBOUNCE_MS = 300        # debounce per refresh waveform su gain
 
 # --- Waveform rendering ---
 WAVEFORM_WIDTH = 1500             # larghezza default del rendering high-res (px)
-WAVEFORM_PREVIEW_WIDTH = 600      # larghezza del preview rapido prima dell'high-res
-LARGE_FILE_BYTES = 2 * 1024 * 1024  # soglia oltre la quale il rendering va in background
+WAVEFORM_HEIGHT = 75              # altezza del rendering (px)

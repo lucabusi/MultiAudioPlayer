@@ -1,14 +1,9 @@
-import os
 import logging
 import waveform as wf
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
 from PyQt5.QtGui import QPixmap
-from __init__ import (
-    LARGE_FILE_BYTES,
-    WAVEFORM_DEBOUNCE_MS,
-    WAVEFORM_PREVIEW_WIDTH,
-    WAVEFORM_WIDTH,
-)
+from constants import WAVEFORM_DEBOUNCE_MS, WAVEFORM_WIDTH
+from thread_registry import retain
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +14,15 @@ def _bytes_to_pixmap(data: bytes) -> QPixmap:
     return pixmap
 
 
-class WaveformThread(QThread):
-    waveform_ready = pyqtSignal(bytes, int)  # data, sequence number
+class EnvelopeThread(QThread):
+    """Decodifica il file e calcola l'envelope in background (parte costosa)."""
 
-    def __init__(self, file_path: str, width: int = WAVEFORM_WIDTH,
-                 gain: float = 1.0, seq: int = 0):
+    envelope_ready = pyqtSignal(object, object, int)  # min_vals, max_vals, seq
+
+    def __init__(self, file_path: str, width: int = WAVEFORM_WIDTH, seq: int = 0):
         super().__init__()
         self._file_path = file_path
         self._width = width
-        self._gain = gain
         self._seq = seq
         self._cancelled = False
 
@@ -38,80 +33,78 @@ class WaveformThread(QThread):
         if self._cancelled:
             return
         try:
-            data = wf.generate_waveform_mem(self._file_path, width=self._width, gain=self._gain)
+            min_vals, max_vals = wf.compute_envelope(self._file_path, self._width)
             if not self._cancelled:
-                self.waveform_ready.emit(data, self._seq)
+                self.envelope_ready.emit(min_vals, max_vals, self._seq)
         except Exception as e:
-            logger.debug(f"Background waveform failed: {e}")
+            logger.warning(f"Waveform envelope failed for {self._file_path}: {e}")
 
 
 class WaveformService(QObject):
+    """Fornisce la waveform come QPixmap, sempre in modo asincrono.
+
+    - `generate(path)`: avvia decode+envelope in un thread; emette
+      `waveform_upgraded` quando pronta. Nel frattempo la progress bar
+      mostra il fondo piatto — il main thread non decodifica mai.
+    - `refresh(gain)`: il gain è solo un fattore applicato all'envelope già
+      in memoria, quindi il re-render è sincrono e costa millisecondi.
+      Debounced per assorbire raffiche dello spinbox.
+    - `cancel()`: non blocca. Il thread vive nel thread_registry finché
+      non ha finito; i risultati superati vengono scartati via `seq`.
+    """
+
     waveform_upgraded = pyqtSignal(QPixmap)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._active_threads: set[WaveformThread] = set()
         self._seq = 0
+        self._thread: EnvelopeThread | None = None
         self._file_path: str = ''
-        self._pending_gain: float = 1.0
+        self._gain: float = 1.0
+        self._envelope: tuple | None = None  # (min_vals, max_vals)
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(WAVEFORM_DEBOUNCE_MS)
-        self._debounce.timeout.connect(self._do_refresh)
+        self._debounce.timeout.connect(self._render_current)
 
-    def generate(self, file_path: str, gain: float = 1.0) -> QPixmap:
-        """Return initial waveform as QPixmap. Starts background upgrade for large files.
-        Cade su `generate_waveform_librosa` se soundfile non gestisce il formato."""
+    def generate(self, file_path: str, gain: float = 1.0) -> None:
+        """Avvia il calcolo della waveform; il risultato arriva via
+        `waveform_upgraded`."""
         self._file_path = file_path
-        try:
-            fsize = os.path.getsize(file_path)
-        except OSError:
-            fsize = 0
-
-        if fsize <= LARGE_FILE_BYTES:
-            try:
-                data = wf.generate_waveform_mem(file_path, width=WAVEFORM_WIDTH, gain=gain)
-            except Exception:
-                data = wf.generate_waveform_librosa(file_path, width=WAVEFORM_WIDTH, gain=gain)
-            return _bytes_to_pixmap(data)
-
-        try:
-            initial_data = wf.generate_waveform_mem(file_path, width=WAVEFORM_PREVIEW_WIDTH, gain=gain)
-        except Exception:
-            initial_data = wf.generate_waveform_librosa(file_path, width=WAVEFORM_PREVIEW_WIDTH, gain=gain)
-
-        self._start_thread(file_path, gain)
-        return _bytes_to_pixmap(initial_data)
+        self._gain = gain
+        self._envelope = None
+        if self._thread is not None:
+            self._thread.cancel()
+        self._seq += 1
+        self._thread = EnvelopeThread(file_path, seq=self._seq)
+        self._thread.envelope_ready.connect(self._on_envelope_ready)
+        retain(self._thread)
+        self._thread.start()
 
     def refresh(self, gain: float) -> None:
-        """Debounced: rigenera la waveform con il nuovo gain."""
-        if not self._file_path:
+        """Debounced: re-renderizza la waveform con il nuovo gain."""
+        self._gain = gain
+        if self._envelope is None:
+            # L'envelope non è ancora arrivato: _on_envelope_ready userà
+            # comunque il gain più recente.
             return
-        self._pending_gain = gain
         self._debounce.start()  # riavvia il timer ad ogni chiamata
 
-    def _do_refresh(self):
-        self._start_thread(self._file_path, self._pending_gain)
+    def _on_envelope_ready(self, min_vals, max_vals, seq: int):
+        if seq != self._seq:  # risultato di un generate()/cancel() superato
+            return
+        self._envelope = (min_vals, max_vals)
+        self._render_current()
 
-    def _start_thread(self, file_path: str, gain: float = 1.0):
-        self._seq += 1
-        seq = self._seq
-        for t in list(self._active_threads):
-            t.cancel()
-        thread = WaveformThread(file_path, width=WAVEFORM_WIDTH, gain=gain, seq=seq)
-        self._active_threads.add(thread)
-        thread.waveform_ready.connect(self._on_waveform_ready)
-        thread.finished.connect(lambda t=thread: self._active_threads.discard(t))
-        thread.start()
-
-    def _on_waveform_ready(self, data: bytes, seq: int):
-        if seq == self._seq:  # scarta risultati di thread obsoleti
-            self.waveform_upgraded.emit(_bytes_to_pixmap(data))
+    def _render_current(self):
+        if self._envelope is None:
+            return
+        data = wf.render_envelope(self._envelope[0], self._envelope[1], gain=self._gain)
+        self.waveform_upgraded.emit(_bytes_to_pixmap(data))
 
     def cancel(self):
         self._debounce.stop()
-        for t in list(self._active_threads):
-            t.cancel()
-        for t in list(self._active_threads):
-            t.wait(500)
-        self._active_threads.clear()
+        self._seq += 1  # invalida qualsiasi risultato in arrivo
+        if self._thread is not None:
+            self._thread.cancel()
+            self._thread = None

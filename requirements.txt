@@ -4,12 +4,13 @@ numpy
 soundfile
 Pillow
 
-# Decode + rendering waveform (richiesti)
+# Decode waveform — fallback per formati non gestiti da libsndfile (AAC, WMA, ...)
 librosa
-matplotlib
+# matplotlib      # solo per i benchmark legacy (bench_envelope.py), non serve all'app
 
 # Backend audio — almeno uno consigliato.
-# Senza nessuno di questi, _StubBackend prende il posto (UI-only, no audio output).
+# Il backend 'qt' (QMediaPlayer) non richiede nulla: è incluso in PyQt5.
+# Senza backend funzionante, _StubBackend prende il posto (UI-only, no audio output).
 python-vlc
 # python-mpv      # alternativa a VLC
 # PyGObject       # per GStreamer (richiede anche gstreamer1.0-plugins-base a livello di sistema)
