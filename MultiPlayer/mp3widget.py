@@ -549,12 +549,21 @@ class Mp3Widget(QWidget):
         info = self.mp3file.get_playback_info()
         if info is not None:
             self.progress_bar.setValue(int(info['position'] * self.progress_bar.maximum()))
-            self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(info['current_seconds'])}")
-            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(info['remaining_seconds'])}")
+            self._set_time_labels(info['current_seconds'], info['remaining_seconds'])
         else:
             self.progress_bar.setValue(0)
-            self.lblElapsedTime.setText("Elapsed Time: 00:00")
-            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(round(self.mp3file.mp3_total_duration / 1000))}")
+            self._set_time_labels(0, round(self.mp3file.mp3_total_duration / 1000))
+
+    def _set_time_labels(self, elapsed_s: int, remaining_s: int):
+        """Aggiorna le label SOLO se i secondi sono cambiati: setText con lo
+        stesso testo forza comunque re-layout e repaint, e a 20Hz per widget
+        il polling teneva la CPU occupata anche ad app ferma."""
+        if elapsed_s != getattr(self, '_last_elapsed_s', None):
+            self._last_elapsed_s = elapsed_s
+            self.lblElapsedTime.setText(f"Elapsed Time: {seconds_to_min_sec(elapsed_s)}")
+        if remaining_s != getattr(self, '_last_remaining_s', None):
+            self._last_remaining_s = remaining_s
+            self.lblRemainingTime.setText(f"Remaining Time: {seconds_to_min_sec(remaining_s)}")
 
     def _set_progress_bar_background(self, pixmap: QPixmap):
         if self.progress_bar is None:

@@ -14,11 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 def compute_peak_gain(file_path: str) -> float:
-    """Calcola il gain necessario per portare il picco massimo del file a 1.0."""
+    """Calcola il gain necessario per portare il picco massimo del file a 1.0.
+
+    Il picco è il massimo assoluto su TUTTI i canali, non sul downmix mono:
+    il mix media i canali e può cancellare i picchi (es. segnali in
+    controfase), producendo un gain troppo alto che manda in clipping
+    la riproduzione."""
     samples, _ = sf.read(file_path, dtype='float32', always_2d=False)
-    if samples.ndim > 1:
-        samples = samples.mean(axis=1)
-    peak = float(np.max(np.abs(samples)))
+    peak = float(np.max(np.abs(samples))) if samples.size else 0.0
     if peak < 1e-9:
         return 1.0
     return 1.0 / peak
@@ -254,7 +257,14 @@ class _VlcBackend(_PlaybackBackend):
         return self._player.get_time()
 
     def get_duration_ms(self) -> int:
-        return self._duration_ms
+        # media.parse() può non aver ancora risolto la durata a init
+        # (ritorna -1/0): in quel caso rileggila dal player finché non è
+        # nota, altrimenti la progress bar resterebbe rotta per sempre.
+        if self._duration_ms <= 0:
+            length = self._player.get_length()
+            if length > 0:
+                self._duration_ms = length
+        return max(0, self._duration_ms)
 
     def set_position(self, position: float) -> None:
         self._player.set_position(position)
@@ -454,6 +464,9 @@ class _QtBackend(_PlaybackBackend):
 
     REQUIRES_MAIN_THREAD: bool = True
 
+    _ERROR_NAMES = {1: 'ResourceError', 2: 'FormatError', 3: 'NetworkError',
+                    4: 'AccessDeniedError', 5: 'ServiceMissingError'}
+
     def __init__(self, file_name: str):
         from PyQt5.QtCore import QUrl
         from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QAudio
@@ -461,13 +474,54 @@ class _QtBackend(_PlaybackBackend):
         self._QMediaContent = QMediaContent
         self._QAudio = QAudio
         self._player = QMediaPlayer()
+        # Il caricamento è asincrono: un media rifiutato dal backend nativo
+        # (es. WMF che non digerisce un tag ID3 malformato) arriva DOPO
+        # l'init come segnale error. Senza propagarlo, il widget resterebbe
+        # apparentemente sano ma morto (durata 0, play inerte).
+        self._error_cb = None
+        self._pending_error: str | None = None
+        self._player.error.connect(self._on_player_error)
         self._player.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(file_name))))
         self._volume = 100
         self._player.setVolume(100)
 
+    def _on_player_error(self, code):
+        name = self._player.errorString() or self._ERROR_NAMES.get(int(code), f'error {code}')
+        msg = f"QMediaPlayer: {name} — file non riproducibile dal backend qt"
+        if self._error_cb is not None:
+            # Consegna al prossimo giro di event loop: il segnale può arrivare
+            # SINCRONO dentro play() e rientrare nello stack di QMediaPlayer
+            # (verificato: crash hard, exit 0xC0000409, senza il defer).
+            cb = self._error_cb
+            QTimer.singleShot(0, lambda: cb(msg))
+        else:
+            self._pending_error = msg
+
+    def set_error_callback(self, cb) -> None:
+        """Registra il callback per gli errori media asincroni; se un errore
+        è già arrivato prima della registrazione, lo consegna subito."""
+        self._error_cb = cb
+        if self._pending_error is not None:
+            pending, self._pending_error = self._pending_error, None
+            cb(pending)
+
+    def _at_end(self) -> bool:
+        """True se la posizione ha raggiunto la durata nota del media.
+
+        Workaround per un bug WMF (Windows): dopo una riproduzione naturale
+        completa (senza seek) QMediaPlayer può NON emettere mai EndOfMedia e
+        restare in PlayingState con la posizione congelata sulla durata —
+        pipeline stallato. Verificato su questa macchina: mediaStatus resta
+        BufferedMedia(6) e state PlayingState(1) per sempre. In quello stato
+        is_playing() mentirebbe: Play farebbe pausa di una traccia morta e
+        fade_in sarebbe un no-op ("la canzone non riparte")."""
+        duration = self._player.duration()
+        return duration > 0 and self._player.position() >= duration
+
     def play(self) -> None:
-        # Dopo la fine del brano si riparte dall'inizio.
-        if self._player.mediaStatus() == self._QMediaPlayer.EndOfMedia:
+        # Dopo la fine del brano si riparte dall'inizio. _at_end copre il
+        # caso del pipeline stallato in cui EndOfMedia non è mai arrivato.
+        if self._player.mediaStatus() == self._QMediaPlayer.EndOfMedia or self._at_end():
             self._player.setPosition(0)
         self._player.play()
 
@@ -482,9 +536,9 @@ class _QtBackend(_PlaybackBackend):
             return PlaybackState.ENDED
         s = self._player.state()
         if s == self._QMediaPlayer.PlayingState:
-            return PlaybackState.PLAYING
+            return PlaybackState.ENDED if self._at_end() else PlaybackState.PLAYING
         if s == self._QMediaPlayer.PausedState:
-            return PlaybackState.PAUSED
+            return PlaybackState.ENDED if self._at_end() else PlaybackState.PAUSED
         return PlaybackState.STOPPED
 
     def get_time_ms(self) -> int:
@@ -566,6 +620,76 @@ def available_backends() -> list[str]:
     return list(_BACKENDS.keys())
 
 
+class AudioWarmup(QObject):
+    """Tiene aperto l'endpoint audio con uno stream di silenzio continuo.
+
+    Su Windows il primo stream dopo che il dispositivo è andato in idle
+    (tipico: HDMI, Bluetooth, USB) impiega 1-2 secondi ad aprirsi e l'inizio
+    della traccia va perso — inaccettabile per una cue teatrale. Uno stream
+    PCM di zeri (~176 KB/s, CPU trascurabile) mantiene la sessione WASAPI e
+    l'endpoint attivi per tutta la durata della sessione.
+
+    Se il dispositivo audio non è disponibile fallisce in silenzio: è solo
+    un'ottimizzazione, la riproduzione vera non dipende da questo oggetto.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._out = None
+        self._io = None
+        self._timer = None
+        try:
+            from PyQt5.QtMultimedia import QAudioOutput, QAudioFormat
+            # 8 kHz mono: il minimo che tiene aperta la sessione — il mixer
+            # di sistema resample, a noi interessa solo che l'endpoint resti
+            # attivo. 16 KB/s di zeri, feed ogni 250ms su un buffer ampio.
+            fmt = QAudioFormat()
+            fmt.setSampleRate(8000)
+            fmt.setChannelCount(1)
+            fmt.setSampleSize(16)
+            fmt.setCodec('audio/pcm')
+            fmt.setByteOrder(QAudioFormat.LittleEndian)
+            fmt.setSampleType(QAudioFormat.SignedInt)
+            self._out = QAudioOutput(fmt, self)
+            self._out.setBufferSize(32768)  # ~2s di margine
+            self._io = self._out.start()  # push mode
+            if self._io is None:
+                raise RuntimeError('QAudioOutput.start() ha restituito None')
+            self._silence = bytes(8192)
+            self._timer = QTimer(self)
+            self._timer.timeout.connect(self._feed)
+            self._timer.start(250)
+            self._feed()
+            logger.info('audio warmup attivo (stream di silenzio)')
+        except Exception as exc:
+            logger.warning(f'audio warmup non disponibile: {exc}')
+            self.stop()
+
+    def _feed(self):
+        if self._io is None or self._out is None:
+            return
+        try:
+            free = self._out.bytesFree()
+            while free >= len(self._silence):
+                self._io.write(self._silence)
+                free -= len(self._silence)
+        except Exception as exc:
+            logger.warning(f'audio warmup interrotto: {exc}')
+            self.stop()
+
+    def stop(self):
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+        if self._out is not None:
+            try:
+                self._out.stop()
+            except Exception:
+                pass
+            self._out = None
+        self._io = None
+
+
 # ---------------------------------------------------------------------------
 # Mp3File
 # ---------------------------------------------------------------------------
@@ -590,6 +714,7 @@ class Mp3File(QObject):
         self.gain: float = 1.0
         self._peak_thread: PeakAnalyzerThread | None = None
         self._fade_restore_volume: int | None = None
+        self._ended_notified = False
         self._closed = False
 
         backend_key = backend.lower()
@@ -628,7 +753,16 @@ class Mp3File(QObject):
         self._backend = backend
         self.mp3_total_duration = self._backend.get_duration_ms()
         self._backend.set_volume(self._effective_volume())
+        if hasattr(backend, 'set_error_callback'):
+            backend.set_error_callback(self._on_media_error)
         self.loaded.emit()
+
+    def _on_media_error(self, message: str):
+        """Errore media asincrono dal backend (dopo il load): propagato come
+        load_error così il widget segnala il file e disabilita i controlli."""
+        logger.error(f"Media error for {self.file_name}: {message}")
+        if not self._closed:
+            self.load_error.emit(message)
 
     def _on_backend_error(self, message: str):
         logger.error(f"Impossibile inizializzare il backend: {message}")
@@ -649,6 +783,13 @@ class Mp3File(QObject):
             # caricamento asincrono del media: rileggila finché non è nota.
             self.mp3_total_duration = self._backend.get_duration_ms()
         state = self._backend.get_state()
+        if state == PlaybackState.ENDED and not self._ended_notified:
+            # Fine traccia naturale: nessun backend la segnala via callback,
+            # quindi va notificata qui (punto di poll) — altrimenti la UI
+            # resterebbe in stato "playing" (bottone verde) per sempre.
+            self._ended_notified = True
+            self._stop_active_fade()
+            self.playback_state_changed.emit('stopped')
         if state not in (PlaybackState.PLAYING, PlaybackState.PAUSED):
             return None
         if self.mp3_total_duration <= 0:
@@ -673,6 +814,7 @@ class Mp3File(QObject):
                 self._backend.pause()
                 self.playback_state_changed.emit('paused')
             else:
+                self._ended_notified = False
                 self._backend.play()
                 if self._backend.NEEDS_VOLUME_REAPPLY_ON_PLAY:
                     QTimer.singleShot(FADE_STARTUP_DELAY_MS,
@@ -686,6 +828,7 @@ class Mp3File(QObject):
         if self._backend is None:
             return
         self._stop_active_fade()
+        self._ended_notified = False
         try:
             self._backend.stop()
             self.playback_state_changed.emit('stopped')
@@ -716,6 +859,7 @@ class Mp3File(QObject):
         if self._backend is None or self._backend.is_playing():
             return
         self._stop_active_fade()
+        self._ended_notified = False
         # Silenzia PRIMA di play() per evitare un burst audibile iniziale
         # (altrimenti l'audio parte all'actual_volume corrente per qualche ms).
         self.set_volume(0)

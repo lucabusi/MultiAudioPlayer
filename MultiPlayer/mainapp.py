@@ -4,7 +4,7 @@ import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QColor, QPen
-from mp3file import Mp3File
+from mp3file import Mp3File, AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
@@ -90,6 +90,11 @@ class MainApp(QMainWindow):
         self.backend = 'qt'  # 'vlc' | 'qt' | 'gstreamer' | 'mpv' (vedi mp3file._BACKENDS)
 
         self.init_ui()
+
+        # Tiene sveglio l'endpoint audio: senza, il PRIMO play dopo l'avvio
+        # (o dopo un lungo idle) parte con 1-2s di ritardo su alcuni output
+        # (HDMI/Bluetooth/USB) e l'attacco della cue va perso.
+        self._audio_warmup = AudioWarmup(self)
 
         self._progress_timer = QTimer(self)
         self._progress_timer.timeout.connect(self._tick_progress)
@@ -329,6 +334,7 @@ class MainApp(QMainWindow):
                 event.ignore()
                 return
         self._progress_timer.stop()
+        self._audio_warmup.stop()
         for widget in list(self.mp3_widgets):
             widget.shutdown()
         event.accept()
