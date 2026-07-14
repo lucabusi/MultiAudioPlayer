@@ -35,23 +35,28 @@ Per l'output audio è necessario almeno uno dei backend:
 ## Avvio
 
 ```bash
-python MultiPlayer.py
+python MultiPlayer/MultiPlayer.py
 ```
 
 ## Struttura del progetto
 
-| File | Descrizione |
+| Percorso | Descrizione |
 |---|---|
-| `MultiPlayer.py` | Entry point |
-| `mainapp.py` | Finestra principale e gestione layout |
-| `mp3widget.py` | Widget per singolo file audio |
-| `mp3file.py` | Wrapper backend audio (play/stop/volume/fade) |
-| `waveform.py` | Decode audio, envelope (con cache) e rendering waveform |
-| `waveform_service.py` | Servizio asincrono per la waveform (decode in thread, re-render su gain) |
-| `grid_manager.py` | Gestione griglia widget con drag & drop |
-| `project_manager.py` | Salvataggio/caricamento progetto |
-| `constants.py` | Costanti condivise (timing, dimensioni waveform) |
-| `thread_registry.py` | Tiene vivi i QThread in volo senza wait() bloccanti |
+| `MultiPlayer/` | Codice sorgente dell'applicazione |
+| `MultiPlayer/MultiPlayer.py` | Entry point |
+| `MultiPlayer/mainapp.py` | Finestra principale e gestione layout |
+| `MultiPlayer/mp3widget.py` | Widget per singolo file audio |
+| `MultiPlayer/mp3file.py` | Wrapper backend audio (play/stop/volume/fade) |
+| `MultiPlayer/waveform.py` | Decode audio, envelope (con cache) e rendering waveform |
+| `MultiPlayer/waveform_service.py` | Servizio asincrono per la waveform (decode in thread, re-render su gain) |
+| `MultiPlayer/grid_manager.py` | Gestione griglia widget con drag & drop |
+| `MultiPlayer/project_manager.py` | Salvataggio/caricamento progetto |
+| `MultiPlayer/constants.py` | Costanti condivise (timing, dimensioni waveform) |
+| `MultiPlayer/thread_registry.py` | Tiene vivi i QThread in volo senza wait() bloccanti |
+| `audio_test/` | File MP3 di test e prova |
+| `benchmarks/` | Benchmark (decode, envelope, rendering) |
+| `docs/` | Documentazione e stato del progetto |
+| `projects/` | Progetti `.mpp` di esempio |
 
 ## Dipendenze principali
 

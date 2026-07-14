@@ -29,7 +29,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 
-AUDIO_DIR = Path(__file__).parent / "audio_test"
+AUDIO_DIR = Path(__file__).parent.parent / "audio_test"
 WIDTH  = 1500
 HEIGHT = 75
 RUNS   = 5

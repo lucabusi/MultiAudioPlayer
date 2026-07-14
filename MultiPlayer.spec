@@ -37,8 +37,8 @@ extra_hidden = ['PyQt5.QtMultimedia']  # import lazy nel backend 'qt' (mp3file._
 # extra_hidden += collect_submodules('matplotlib') # se plotti la waveform
 
 a = Analysis(
-    ['MultiPlayer.py'],
-    pathex=[project_dir],
+    [os.path.join('MultiPlayer', 'MultiPlayer.py')],
+    pathex=[os.path.join(project_dir, 'MultiPlayer')],
     binaries=[],
     datas=[
         # Aggiungi qui eventuali risorse non-Python:

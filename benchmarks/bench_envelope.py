@@ -31,9 +31,11 @@ import librosa.display
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / "MultiPlayer"))
 import waveform as wf
 
-AUDIO_DIR = Path(__file__).parent / "audio_test"
+AUDIO_DIR = Path(__file__).parent.parent / "audio_test"
 RUNS = 3
 
 

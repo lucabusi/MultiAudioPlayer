@@ -23,7 +23,7 @@ import soundfile as sf
 import miniaudio
 import librosa
 
-AUDIO_DIR  = Path(__file__).parent / "audio_test"
+AUDIO_DIR  = Path(__file__).parent.parent / "audio_test"
 BLOCK_SIZE = 262144   # frames per blocco in sf-stream (ottimale da benchmark precedente)
 RUNS       = 5
 
