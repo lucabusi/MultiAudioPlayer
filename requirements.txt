@@ -8,9 +8,9 @@ Pillow
 librosa
 # matplotlib      # solo per i benchmark legacy (bench_envelope.py), non serve all'app
 
-# Backend audio — almeno uno consigliato.
-# Il backend 'qt' (QMediaPlayer) non richiede nulla: è incluso in PyQt5.
+# Backend audio — nessuno è obbligatorio.
+# Il predefinito è 'qt' (QMediaPlayer) e non richiede nulla: è incluso in PyQt5.
 # Senza backend funzionante, _StubBackend prende il posto (UI-only, no audio output).
-python-vlc
+python-vlc        # opzionale: solo per il backend 'vlc' (richiede VLC di sistema)
 # python-mpv      # alternativa a VLC
 # PyGObject       # per GStreamer (richiede anche gstreamer1.0-plugins-base a livello di sistema)

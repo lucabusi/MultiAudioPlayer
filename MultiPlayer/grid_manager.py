@@ -14,6 +14,9 @@ class GridManager:
         Columns: occupied get stretch=1, unoccupied get stretch=0 + a small
         minimum width (60px) so they stay visible as drop targets without
         stealing space. Always shows at least initial_cols columns.
+        Le colonne oltre quelle correnti vengono azzerate: QGridLayout non
+        rimpicciolisce mai columnCount(), quindi dopo un drag su una colonna
+        alta e un ritorno indietro resterebbero prenotate a 60px per sempre.
 
         Rows: all rows from 0 to max_occupied_row get stretch=1, ensuring no
         row between the top and the last widget collapses (e.g. when a drag
@@ -33,13 +36,15 @@ class GridManager:
         max_col = max(occupied_cols, default=-1)
         num_cols = max(max_col + 1, self._initial_cols)
 
-        for c in range(num_cols):
+        for c in range(max(num_cols, self._layout.columnCount())):
             if c in occupied_cols:
                 self._layout.setColumnStretch(c, 1)
                 self._layout.setColumnMinimumWidth(c, 0)
             else:
                 self._layout.setColumnStretch(c, 0)
-                self._layout.setColumnMinimumWidth(c, 60)
+                # Drop target visibile solo dentro le colonne correnti; oltre
+                # è un residuo di un layout precedente e deve collassare.
+                self._layout.setColumnMinimumWidth(c, 60 if c < num_cols else 0)
 
         max_row = max(occupied_rows, default=-1)
         for r in range(max_row + 1):

@@ -12,6 +12,11 @@ from thread_registry import retain
 
 logger = logging.getLogger(__name__)
 
+# Sotto questa soglia il gain è considerato nullo: il volume udibile è 0
+# qualunque sia il volume slider, quindi la conversione slider<->effettivo
+# di set_gain non è più invertibile.
+GAIN_EPSILON = 1e-6
+
 
 def compute_peak_gain(file_path: str) -> float:
     """Calcola il gain necessario per portare il picco massimo del file a 1.0.
@@ -699,6 +704,7 @@ class Mp3File(QObject):
     fadeOutFinished = pyqtSignal()
     playback_state_changed = pyqtSignal(str)  # 'playing', 'paused', 'stopped'
     fade_in_started = pyqtSignal()
+    fade_out_started = pyqtSignal()
     loaded = pyqtSignal()
     load_error = pyqtSignal(str)
     normalize_ready = pyqtSignal(float)  # emesso con il gain calcolato
@@ -800,7 +806,10 @@ class Mp3File(QObject):
         return {
             'position': current_time_ms / self.mp3_total_duration,
             'current_seconds': int(current_time_ms // 1000),
-            'remaining_seconds': int((self.mp3_total_duration - current_time_ms) // 1000),
+            # Clamp a 0: con una durata dichiarata più corta della riproduzione
+            # reale (VBR mal taggati) la differenza va negativa e la label
+            # mostrava tempi tipo "-1:59".
+            'remaining_seconds': max(0, int((self.mp3_total_duration - current_time_ms) // 1000)),
         }
 
     def play_pause(self):
@@ -909,6 +918,9 @@ class Mp3File(QObject):
         self._fade_restore_volume = int(start_volume)
         self.fade_controller.update_volume.connect(self.set_volume)
         self.fade_controller.finished.connect(self._on_fade_out_finished)
+        # Emesso solo quando il fade parte davvero (dopo il no-op guard sopra):
+        # la UI deve accendere l'indicatore in base al fatto, non alla richiesta.
+        self.fade_out_started.emit()
         self.fade_controller.start()
 
     def _on_fade_out_finished(self):
@@ -937,11 +949,18 @@ class Mp3File(QObject):
         actual_volume=100, gain=1.0 (effective=100), e l'utente normalizza
         portando gain a 2.0, actual_volume diventa 50 (effective=100).
 
-        :param gain: 0..5.0 circa. Valori <=1e-6 vengono alzati a 1e-6.
+        Con un gain nullo il volume "slider" resta invece dov'è e cambia solo
+        ciò che sente il backend: l'effettivo è 0 per definizione, quindi
+        ricalcolare `actual_volume` da esso lo azzererebbe in modo definitivo
+        (tornando poi a gain 1.0 la traccia restava muta con lo slider a 0).
+
+        :param gain: 0..5.0 circa. Valori negativi vengono portati a 0.
         """
-        old_effective = self._effective_volume()
-        self.gain = max(1e-6, gain)
-        self.actual_volume = max(0, min(100, round(old_effective / self.gain)))
+        new_gain = max(0.0, float(gain))
+        if new_gain > GAIN_EPSILON and self.gain > GAIN_EPSILON:
+            old_effective = self._effective_volume()
+            self.actual_volume = max(0, min(100, round(old_effective / new_gain)))
+        self.gain = new_gain
         if self._backend is not None:
             self._backend.set_volume(self._effective_volume())
         logger.debug(f"set_gain: {self.gain:.3f}  actual: {self.actual_volume}  effective: {self._effective_volume()}")

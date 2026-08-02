@@ -72,6 +72,8 @@ class Mp3Widget(QWidget):
         self.mp3file.playback_state_changed.connect(self._on_playback_state_changed)
         self.mp3file.fade_in_started.connect(self._on_fade_in_started)
         self.mp3file.fadeInFinished.connect(self._on_fade_in_finished)
+        self.mp3file.fade_out_started.connect(self._on_fade_out_started)
+        self.mp3file.fadeOutFinished.connect(self._on_fade_out_finished)
         self.mp3file.normalize_ready.connect(self._on_normalize_ready)
         self.mp3file.normalize_failed.connect(self._on_normalize_failed)
         self.mp3file.loaded.connect(self._on_loaded)
@@ -411,17 +413,31 @@ class Mp3Widget(QWidget):
         if state == 'playing':
             self.changeButtonStyle(self.btnPlay, "green")
         elif state == 'paused':
+            # La pausa passa da Mp3File._stop_active_fade: qualsiasi fade in
+            # corso è stato annullato, quindi gli indicatori vanno spenti.
             self.changeButtonStyle(self.btnPlay, "red")
+            self._clear_fade_indicators()
         elif state == 'stopped':
             self.changeButtonStyle(self.btnPlay, "")
-            self.changeButtonStyle(self.btnFadeIn, "")
-            self.changeButtonStyle(self.btnFadeOut, "")
+            self._clear_fade_indicators()
+
+    def _clear_fade_indicators(self):
+        self.changeButtonStyle(self.btnFadeIn, "")
+        self.changeButtonStyle(self.btnFadeOut, "")
 
     def _on_fade_in_started(self):
+        self.changeButtonStyle(self.btnFadeOut, "")
         self.changeButtonStyle(self.btnFadeIn, "green")
 
     def _on_fade_in_finished(self):
         self.changeButtonStyle(self.btnFadeIn, "")
+
+    def _on_fade_out_started(self):
+        self.changeButtonStyle(self.btnFadeIn, "")
+        self.changeButtonStyle(self.btnFadeOut, "green")
+
+    def _on_fade_out_finished(self):
+        self.changeButtonStyle(self.btnFadeOut, "")
 
     def _on_loaded(self):
         """Il backend è pronto: la durata reale è ora disponibile."""
@@ -437,11 +453,29 @@ class Mp3Widget(QWidget):
         for w in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut, self.btnNorm):
             w.setEnabled(False)
 
+    def _report_playback_error(self, action: str, exc: Exception) -> None:
+        """Segnala nella UI un errore del backend senza propagarlo.
+
+        Un'eccezione che esce da uno slot Qt viene trasformata da PyQt5 in
+        `qFatal()`: l'intero processo aborta (verificato: exit 0xC0000409).
+        Un device audio perso a metà spettacolo non deve chiudere l'app, così
+        i controlli restano attivi e l'operatore può ritentare."""
+        logger.error(f"{action} failed for {self.mp3file.file_name}: {exc}")
+        self.filename_label.setText(f"⚠ {os.path.basename(self.mp3file.file_name)}")
+        self.filename_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self.filename_label.setToolTip(f"{action} fallito: {exc}")
+
     def on_play_pause_clicked(self):
-        self.mp3file.play_pause()
+        try:
+            self.mp3file.play_pause()
+        except Exception as e:
+            self._report_playback_error("Play/Pause", e)
 
     def on_stop_clicked(self):
-        self.mp3file.stop()
+        try:
+            self.mp3file.stop()
+        except Exception as e:
+            self._report_playback_error("Stop", e)
 
     def on_remove_clicked(self):
         self.shutdown()
@@ -477,10 +511,17 @@ class Mp3Widget(QWidget):
         self.spinboxGain.setValue(gain)  # triggers _on_gain_changed via valueChanged
 
     def to_state(self) -> dict:
-        """Serialize the widget state to a JSON-friendly dict."""
+        """Serialize the widget state to a JSON-friendly dict.
+
+        Il volume viene letto dallo slider, non da `mp3file.actual_volume`:
+        durante un fade quest'ultimo è il volume istantaneo della rampa
+        (salvando a metà di un fade-in da 0 a 90 si otterrebbe 4). Lo slider
+        è la posizione scelta dall'utente e resta allineato ad
+        `actual_volume` in tutti gli altri istanti.
+        """
         return {
             "file_path": self.mp3file.file_name,
-            "volume": int(self.mp3file.get_volume()),
+            "volume": int(self.slidVolume.value()),
             "fade_time": float(self.fade_time),
             "gain": float(self.mp3file.gain),
             "layout": self.widgetLayout.name,
@@ -538,8 +579,9 @@ class Mp3Widget(QWidget):
         self.mp3file.fade_in(self.fade_time, self.slidVolume.value())
 
     def on_fade_out_clicked(self):
-        self.changeButtonStyle(self.btnFadeIn, "")
-        self.changeButtonStyle(self.btnFadeOut, "green")
+        # L'indicatore lo accende fade_out_started, non il click: fade_out è un
+        # no-op se la traccia non sta suonando e il pulsante resterebbe verde
+        # a mentire per sempre.
         self.mp3file.fade_out(self.fade_time, self.slidVolume.value(), 0)
 
     def update_playback_position(self, new_position):

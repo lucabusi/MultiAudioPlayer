@@ -8,7 +8,7 @@ from mp3file import Mp3File, AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
-from constants import POLL_INTERVAL_MS
+from constants import APP_VERSION, POLL_INTERVAL_MS
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +102,19 @@ class MainApp(QMainWindow):
 
     def _tick_progress(self):
         for widget in self.mp3_widgets:
-            widget.update_progress_bar()
+            try:
+                widget.update_progress_bar()
+            except Exception as e:
+                # Stesso motivo di Mp3Widget._report_playback_error: un'eccezione
+                # che esce da uno slot Qt fa abortire il processo. Un widget con
+                # il backend rotto non deve fermare il poll degli altri; il poll
+                # gira a 20Hz, quindi si logga una volta sola per widget.
+                if not getattr(widget, '_poll_error_logged', False):
+                    widget._poll_error_logged = True
+                    logger.error(f"Progress poll failed for {widget.mp3file.file_name}: {e}")
 
     def init_ui(self):
-        self.setWindowTitle('MultiPlayer Eden Edition')
+        self.setWindowTitle(f'MultiPlayer Eden Edition {APP_VERSION}')
         self.setGeometry(100, 100, 1080, 600)
 
         menubar = self.menuBar()
@@ -250,6 +259,7 @@ class MainApp(QMainWindow):
                         self.grid_layout.setRowStretch(r, 1)
 
                 successful_loads = []
+                failed_loads = []
                 for file_data in project_data['files']:
                     try:
                         if not os.path.exists(file_data['file_path']):
@@ -266,25 +276,60 @@ class MainApp(QMainWindow):
                         successful_loads.append((mp3_widget, row, col))
 
                     except Exception as e:
+                        # Accumulati e mostrati in un unico avviso a fine ciclo:
+                        # un progetto spostato tra macchine può avere decine di
+                        # percorsi rotti e altrettanti popup modali da chiudere.
                         logger.error(f"Error loading file {file_data['file_path']}: {e}")
-                        QMessageBox.warning(self, "Warning", f"Error loading file {os.path.basename(file_data['file_path'])}: {str(e)}")
+                        failed_loads.append(
+                            f"{os.path.basename(file_data['file_path'])}: {e}")
 
-                for widget, row, col in successful_loads:
-                    self.mp3_widgets.append(widget)
-                    if row != -1 and col != -1:
-                        self.grid_layout.addWidget(widget, row, col)
-                    else:
-                        r, c = self.grid_manager.find_next_available_cell()
-                        self.grid_layout.addWidget(widget, r, c)
+                rejected = [os.path.basename(widget.mp3file.file_name)
+                            for widget, row, col in successful_loads
+                            if not self._place_loaded_widget(widget, row, col)]
                 self.grid_manager.update_column_stretches()
 
                 logger.info(f"Project loaded successfully from {file_name}")
+
+                if failed_loads:
+                    QMessageBox.warning(
+                        self, "Warning",
+                        "%d file non caricati:\n%s"
+                        % (len(failed_loads), "\n".join(failed_loads)))
+
+                if rejected:
+                    QMessageBox.warning(
+                        self, "Grid Full",
+                        "La griglia è piena: %d file non caricati:\n%s"
+                        % (len(rejected), "\n".join(rejected)))
 
                 if 'window_state' in project_data:
                     self._restore_geometry_clamped(project_data['window_state'])
             except Exception as e:
                 logger.error(f"Error loading project data: {e}")
                 QMessageBox.critical(self, "Error", f"Failed to load project: {str(e)}")
+
+    def _place_loaded_widget(self, widget, row: int = -1, col: int = -1) -> bool:
+        """Piazza nella griglia un widget caricato da progetto; True se riuscito.
+
+        Se la cella non è indicata — o è già occupata, come capita nei progetti
+        scritti a mano o salvati da versioni precedenti — cerca la prima libera:
+        due widget nella stessa cella si sovrappongono e quello sotto resta
+        invisibile. A griglia piena rilascia il widget invece di passare
+        (-1, -1) a `addWidget`: Qt in quel caso scarta il widget in silenzio,
+        lasciandolo invisibile ma ancora in `mp3_widgets` e con il backend
+        audio aperto.
+        """
+        if row == -1 or col == -1 or self.grid_layout.itemAtPosition(row, col) is not None:
+            row, col = self.grid_manager.find_next_available_cell()
+        if row == -1 or col == -1:
+            logger.warning("Grid full: %s non caricato",
+                           os.path.basename(widget.mp3file.file_name))
+            widget.shutdown()
+            widget.deleteLater()
+            return False
+        self.mp3_widgets.append(widget)
+        self.grid_layout.addWidget(widget, row, col)
+        return True
 
     def _restore_geometry_clamped(self, ws: dict) -> None:
         """Restora geometria della finestra clampata all'`availableGeometry`.

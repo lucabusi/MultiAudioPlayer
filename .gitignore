@@ -18,6 +18,8 @@ venv/
 *.jpg
 *.wav
 test*/
+!tests/
+tests/*.mpp
 path/
 future/
 _old/

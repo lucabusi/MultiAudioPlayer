@@ -12,12 +12,13 @@ Un lettore audio multi-traccia con interfaccia grafica in Python, pensato per ge
 - Drag & drop per riordinare le tracce nella griglia
 - Salvataggio e caricamento del progetto
 - Più layout di widget (Standard, Compact, Touch, Compact verticale)
-- Backend audio: VLC (predefinito), QMediaPlayer (`qt`, integrato in PyQt5 — nessuna installazione extra), mpv o GStreamer; fallback UI-only senza backend
+- Backend audio: QMediaPlayer (`qt`, predefinito — integrato in PyQt5, nessuna installazione extra), VLC, mpv o GStreamer; fallback UI-only senza backend
 
 ## Requisiti
 
 - Python 3.11+
-- VLC installato nel sistema (consigliato)
+- Nessun player esterno: il backend predefinito (`qt`) è incluso in PyQt5.
+  VLC/mpv/GStreamer servono solo se scegli quei backend.
 
 ## Installazione
 
@@ -26,16 +27,34 @@ pip install -r requirements.txt
 ```
 
 Per l'output audio è necessario almeno uno dei backend:
-- **QMediaPlayer** (`qt`): nessuna installazione extra — usa PyQt5.QtMultimedia
-  (WMF/DirectShow su Windows, GStreamer su Linux). Volume con curva percettiva.
-- **VLC** (predefinito): installa [VLC](https://www.videolan.org/) e `pip install python-vlc`
+- **QMediaPlayer** (`qt`, predefinito): nessuna installazione extra — usa
+  PyQt5.QtMultimedia (WMF/DirectShow su Windows, GStreamer su Linux).
+  Volume software per-player e curva percettiva.
+- **VLC**: installa [VLC](https://www.videolan.org/) e `pip install python-vlc`
 - **mpv**: installa mpv e `pip install python-mpv`
 - **GStreamer**: installa `PyGObject` e i plugin gstreamer di sistema
+
+Il backend si sceglie in `MultiPlayer/mainapp.py` (attributo `self.backend`).
+Se quello scelto non è disponibile si ripiega su `_StubBackend`: la UI resta
+funzionante ma senza audio.
 
 ## Avvio
 
 ```bash
 python MultiPlayer/MultiPlayer.py
+```
+
+La versione applicativa è in `MultiPlayer/constants.py` (`APP_VERSION`) e
+compare nel titolo della finestra.
+
+## Test
+
+Test di regressione sui bug già corretti: girano offscreen, senza finestre e
+senza device audio, usando i file di `audio_test/`.
+
+```bash
+python tests/test_regressions.py     # runner autonomo
+pytest tests/                        # oppure via pytest
 ```
 
 ## Struttura del progetto
@@ -51,8 +70,9 @@ python MultiPlayer/MultiPlayer.py
 | `MultiPlayer/waveform_service.py` | Servizio asincrono per la waveform (decode in thread, re-render su gain) |
 | `MultiPlayer/grid_manager.py` | Gestione griglia widget con drag & drop |
 | `MultiPlayer/project_manager.py` | Salvataggio/caricamento progetto |
-| `MultiPlayer/constants.py` | Costanti condivise (timing, dimensioni waveform) |
+| `MultiPlayer/constants.py` | Versione applicativa e costanti condivise (timing, dimensioni waveform) |
 | `MultiPlayer/thread_registry.py` | Tiene vivi i QThread in volo senza wait() bloccanti |
+| `tests/` | Test di regressione (offscreen, senza audio) |
 | `audio_test/` | File MP3 di test e prova |
 | `benchmarks/` | Benchmark (decode, envelope, rendering) |
 | `docs/` | Documentazione e stato del progetto |
@@ -61,12 +81,12 @@ python MultiPlayer/MultiPlayer.py
 ## Dipendenze principali
 
 ```
-PyQt5
+PyQt5            # GUI + backend audio predefinito (QtMultimedia)
 numpy
 soundfile
 librosa
 Pillow
-python-vlc
+python-vlc       # opzionale, solo per il backend 'vlc'
 ```
 
 ## Licenza
