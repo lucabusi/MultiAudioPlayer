@@ -377,6 +377,53 @@ def test_file_mancanti_un_solo_avviso():
             f"l'avviso non elenca inesistente_{i}.mp3: {avvisi[0]!r}")
 
 
+# ---------------------------------------------------------------------------
+# bug 10 — il drag&drop nella griglia si armava solo se il click cadeva
+# esattamente sulla label del nome file: afferrando il widget in qualunque
+# altro punto (il frame, le label dei tempi) non partiva alcun QDrag e il
+# widget sembrava inamovibile.
+# ---------------------------------------------------------------------------
+def test_drag_si_arma_da_tutto_il_corpo_del_widget():
+    from PyQt5.QtCore import Qt, QPoint
+    from PyQt5.QtGui import QMouseEvent
+    from mp3file import Mp3File
+    from mp3widget import Mp3Widget
+
+    app = _app()
+    w = Mp3Widget(Mp3File(os.path.join(AUD, 'pink_panther.mp3'), backend='qt'))
+    w.resize(700, 220)
+    w.show()
+    _pump(300)
+
+    def premi(pos):
+        w._drag_armed = False
+        app.sendEvent(w, QMouseEvent(QMouseEvent.MouseButtonPress, pos,
+                                     Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+        return w._drag_armed
+
+    def centro(child):
+        return child.mapTo(w, child.rect().center())
+
+    afferrabili = {'nome file': centro(w.filename_label),
+                   'label tempo trascorso': centro(w.lblElapsedTime),
+                   'angolo del frame': QPoint(2, 2)}
+    controlli = {'btnPlay': centro(w.btnPlay),
+                 'btnStop': centro(w.btnStop),
+                 'slider volume': centro(w.slidVolume),
+                 'spinbox gain': centro(w.spinboxGain),
+                 'progress bar': centro(w.progress_bar)}
+
+    armati = {nome: premi(p) for nome, p in afferrabili.items()}
+    rubati = {nome: premi(p) for nome, p in controlli.items()}
+    w.shutdown()
+
+    non_afferrabili = [n for n, ok in armati.items() if not ok]
+    assert not non_afferrabili, (
+        f"drag non armato afferrando: {non_afferrabili} (il widget non si sposta)")
+    scippati = [n for n, ok in rubati.items() if ok]
+    assert not scippati, f"il drag ruba il click ai controlli: {scippati}"
+
+
 def main():
     tests = [(n, o) for n, o in sorted(globals().items())
              if n.startswith('test_') and callable(o)]

@@ -1,7 +1,7 @@
 import os
 import logging
 from enum import Enum
-from PyQt5.QtWidgets import QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
+from PyQt5.QtWidgets import QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData
 from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
 from mp3file import Mp3File
@@ -9,6 +9,10 @@ from waveform_service import WaveformService
 from constants import PROGRESS_BAR_HEIGHT
 
 logger = logging.getLogger(__name__)
+
+# Controlli sotto i quali il click NON deve avviare un drag: sono loro a
+# doverlo ricevere. La progress bar è inclusa perché il click ci fa il seek.
+_DRAG_BLOCKERS = (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar)
 
 
 class WidgetLayout(Enum):
@@ -96,9 +100,20 @@ class Mp3Widget(QWidget):
         self.btnChangeLayout.setText(self.current_layout_name)
 
     def _is_drag_handle(self, pos) -> bool:
-        """Solo la label del filename funge da drag handle: evita di rubare i
-        click ai pulsanti quando l'utente fa un piccolo movimento durante il click."""
-        return self.childAt(pos) is self.filename_label
+        """Tutto il corpo del widget è drag handle, tranne i controlli.
+
+        Limitarlo alla sola label del nome file rendeva il widget di fatto
+        inamovibile: si afferra il corpo, non l'etichetta. Restano esclusi i
+        controlli interattivi, che devono ricevere il click anche se l'utente
+        muove il mouse di qualche pixel mentre preme. Si risale la catena dei
+        parent perché `childAt()` torna il figlio più profondo (es. il
+        QLineEdit interno di una spinbox)."""
+        child = self.childAt(pos)
+        while child is not None and child is not self:
+            if isinstance(child, _DRAG_BLOCKERS):
+                return False
+            child = child.parentWidget()
+        return True
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self._is_drag_handle(event.pos()):
