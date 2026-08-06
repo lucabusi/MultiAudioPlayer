@@ -2,6 +2,12 @@
 
 Un lettore audio multi-traccia con interfaccia grafica in Python, pensato per gestire e riprodurre più file MP3/audio contemporaneamente con controllo indipendente di volume, fade e posizione.
 
+![Python](https://img.shields.io/badge/python%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Piattaforma](https://img.shields.io/badge/piattaforma-Windows%20%7C%20Linux)
+
+
+
 ## Funzionalità
 
 - Riproduzione simultanea di più file audio
