@@ -91,4 +91,4 @@ python-vlc       # opzionale, solo per il backend 'vlc'
 
 ## Licenza
 
-Vedere [LICENSE](LICENSE).
+MIT — vedere [LICENSE](LICENSE).
