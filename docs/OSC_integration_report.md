@@ -1,5 +1,15 @@
 # Report — Valutazione integrazione OSC (Open Sound Control 1.0) client/server
 
+> ⚠️ **DA AGGIORNARE (2026-08-31).** Il documento è la fotografia dell'analisi
+> del 2026-05-10 e non riflette più il codice attuale. In particolare:
+> `Mp3File.get_position()` / `get_volume()` e `_PlaybackBackend.get_position()`
+> sono stati rimossi perché privi di chiamanti — l'endpoint proposto
+> `/mp3player/track/{id}/position f` (§2.3) e la notifica di posizione in
+> uscita (§2.4) andranno reimplementati sopra `get_playback_info()`, che è
+> l'unica via con cui la UI legge oggi la posizione. Restano validi lo schema
+> indirizzi, l'analisi del track-ID stabile (§4.1) e quella del threading (§4.2).
+> I riferimenti a `__init__.py` vanno letti come `constants.py`.
+
 **Data:** 2026-05-10
 **Autore:** Analisi codice esistente
 **Scope:** Aggiungere supporto OSC bidirezionale a MultiPlayer (server per ricezione comandi remoti, client per notifica stato verso sistemi esterni).

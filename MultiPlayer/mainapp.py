@@ -4,7 +4,8 @@ import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QColor, QPen
-from mp3file import Mp3File, AudioWarmup
+from mp3file import Mp3File
+from audio_warmup import AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager

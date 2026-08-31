@@ -424,6 +424,28 @@ def test_drag_si_arma_da_tutto_il_corpo_del_widget():
     assert not scippati, f"il drag ruba il click ai controlli: {scippati}"
 
 
+# ---------------------------------------------------------------------------
+# bug 9 — il default del costruttore Mp3File era 'vlc' mentre README,
+# requirements.txt e mainapp.py dichiarano 'qt' come backend predefinito.
+# Ogni call-site che ometteva l'argomento (script, servizi futuri) otteneva
+# in silenzio VLC, cioe' il backend con l'accoppiamento dei volumi via
+# sessione audio Windows documentato in docs/lessons.md.
+# ---------------------------------------------------------------------------
+def test_default_backend_e_quello_documentato():
+    import inspect
+    from mp3file import Mp3File
+
+    default = inspect.signature(Mp3File.__init__).parameters['backend'].default
+    assert default == 'qt', (
+        f"default del costruttore '{default}' invece di 'qt': "
+        "diverge da README/requirements/mainapp")
+
+    with open(os.path.join(SRC, 'mainapp.py'), encoding='utf-8') as fh:
+        mainapp_src = fh.read()
+    assert "self.backend = 'qt'" in mainapp_src, (
+        "mainapp non usa piu' 'qt': allineare il default di Mp3File")
+
+
 def main():
     tests = [(n, o) for n, o in sorted(globals().items())
              if n.startswith('test_') and callable(o)]

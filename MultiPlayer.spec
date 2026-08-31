@@ -9,12 +9,14 @@ block_cipher = None
 
 # Tutti i moduli locali del progetto, elencati esplicitamente
 local_modules = [
+    'audio_warmup',
     'constants',
     'grid_manager',
     'mainapp',
     'mp3file',
     'mp3widget',
     'project_manager',
+    'thread_registry',
     'waveform',
     'waveform_service',
 ]
