@@ -1,15 +1,16 @@
 import sys
 import os
 import logging
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction, QActionGroup
+from PyQt5.QtCore import Qt, QTimer, QSettings
 from PyQt5.QtGui import QPainter, QColor, QPen
-from mp3file import Mp3File
+from mp3file import Mp3File, available_backends
 from audio_warmup import AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
-from constants import APP_VERSION, POLL_INTERVAL_MS
+from constants import (APP_VERSION, POLL_INTERVAL_MS, DEFAULT_BACKEND,
+                       SETTINGS_ORG, SETTINGS_APP, SETTINGS_BACKEND_KEY)
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,8 @@ class MainApp(QMainWindow):
 
         self.initial_rows = 5
         self.initial_cols = 2
-        self.backend = 'qt'  # 'vlc' | 'qt' | 'gstreamer' | 'mpv' (vedi mp3file._BACKENDS)
+        self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self.backend = self._load_backend_preference()
 
         self.init_ui()
 
@@ -139,6 +141,18 @@ class MainApp(QMainWindow):
         normalize_all_action.triggered.connect(self.normalize_all)
         tools_menu.addAction(normalize_all_action)
 
+        config_menu = menubar.addMenu("Configura")
+        self.backend_menu = config_menu.addMenu("Backend audio")
+        self._backend_group = QActionGroup(self)
+        self._backend_group.setExclusive(True)
+        for name in available_backends():
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.setChecked(name == self.backend)
+            action.triggered.connect(lambda _checked, n=name: self.set_backend(n))
+            self._backend_group.addAction(action)
+            self.backend_menu.addAction(action)
+
         self.container_widget = _DropContainer(
             self._on_container_drag_enter,
             self._get_drop_target_rect,
@@ -163,6 +177,44 @@ class MainApp(QMainWindow):
         self.grid_manager.update_column_stretches()
 
         self.show()
+
+    def _load_backend_preference(self) -> str:
+        """Backend salvato dall'ultima sessione, o DEFAULT_BACKEND.
+
+        La preferenza viene validata: un file di configurazione scritto a mano,
+        o un backend rimosso da una versione successiva, non deve far fallire
+        l'avvio con il ValueError sollevato da Mp3File.
+        """
+        saved = str(self.settings.value(SETTINGS_BACKEND_KEY, DEFAULT_BACKEND))
+        if saved not in available_backends():
+            logger.warning("Backend salvato '%s' non riconosciuto: uso '%s'",
+                           saved, DEFAULT_BACKEND)
+            return DEFAULT_BACKEND
+        return saved
+
+    def set_backend(self, name: str) -> None:
+        """Imposta il backend audio dei file aperti da qui in avanti.
+
+        Le tracce già in griglia mantengono il backend con cui sono nate:
+        sostituirlo a caldo vorrebbe dire distruggere e ricreare il player di
+        ogni traccia, perdendo posizione e volume e interrompendo l'audio in
+        scena. La scelta è persistita e vale anche ai riavvii successivi.
+        """
+        if name not in available_backends():
+            logger.error("Backend '%s' non riconosciuto: ignorato", name)
+            return
+        if name == self.backend:
+            return
+        self.backend = name
+        self.settings.setValue(SETTINGS_BACKEND_KEY, name)
+        self.settings.sync()
+        logger.info("Backend audio impostato su '%s'", name)
+        if self.mp3_widgets:
+            QMessageBox.information(
+                self, "Backend audio",
+                f"Backend impostato su '{name}'.\n\n"
+                "Le tracce già aperte continuano con il backend precedente: "
+                "il nuovo vale per i file e i progetti caricati d'ora in avanti.")
 
     def _on_container_drag_enter(self, event):
         # Drag interno alla stessa app: la sorgente è il widget stesso.

@@ -76,8 +76,8 @@ finestra.
 
 La finestra è composta da:
 
-- **Barra menu** — `File` (Open MP3 Files, Save Project, Load Project, Exit) e
-  `Strumenti` (Normalize All)
+- **Barra menu** — `File` (Open MP3 Files, Save Project, Load Project, Exit),
+  `Strumenti` (Normalize All) e `Configura` (Backend audio)
 - **Griglia scorrevole** — 5 righe × 2 colonne all'avvio, espandibile fino a 20 righe.
   Ogni cella ospita al massimo un widget-traccia; le celle vuote restano visibili come
   bersaglio di drop.
@@ -98,6 +98,9 @@ La finestra è composta da:
    impostabile per singola traccia.
 6. **Salvare** — `File → Save Project` produce un `.mpp` con file, posizioni, volumi, gain,
    tempi di fade, layout e geometria della finestra.
+7. **Scegliere il backend audio** — `Configura → Backend audio`, prima di caricare le tracce:
+   la scelta viene ricordata ai riavvii successivi e vale per i file aperti da lì in avanti
+   (vedi [Backend audio](#backend-audio)).
 
 Alla chiusura, se ci sono tracce aperte, viene chiesto se salvare; annullando il salvataggio la
 chiusura viene interrotta invece di perdere il lavoro.
@@ -260,12 +263,22 @@ fallback.
 | `gstreamer` (alias `gst`) | `PyGObject` + plugin GStreamer di sistema | |
 | *stub* | — | Fallback automatico: simula la riproduzione avanzando un timer. La UI resta pienamente funzionante ma **senza audio** |
 
-Il backend si sceglie in `MultiPlayer/mainapp.py`, attributo `self.backend` della classe
-`MainApp`:
+### Scegliere il backend
 
-```python
-self.backend = 'qt'   # 'vlc' | 'qt' | 'gstreamer' | 'mpv'
-```
+Il backend si sceglie dal menu **`Configura → Backend audio`**: il sottomenu elenca tutti i
+backend registrati e ha la spunta su quello attivo.
+
+La scelta è **persistente** — viene salvata nelle preferenze utente (`QSettings`,
+organizzazione e applicazione `MultiPlayer`; su Linux `~/.config/MultiPlayer/MultiPlayer.conf`,
+su Windows nel registro sotto `HKEY_CURRENT_USER\Software\MultiPlayer`) e viene riletta ad ogni
+avvio. Se il valore salvato non corrisponde a nessun backend registrato, l'applicazione ripiega
+su `DEFAULT_BACKEND` (`qt`) e lo segnala nei log.
+
+Il nuovo backend vale per **i file e i progetti caricati da quel momento in poi**: le tracce già
+in griglia continuano con il backend con cui sono state create. Sostituirlo a caldo
+significherebbe distruggere e ricreare il player di ogni traccia, perdendo posizione e volume e
+interrompendo l'audio in scena. Se ci sono tracce aperte l'applicazione mostra un avviso che lo
+ricorda. Per applicare il cambio a tutto: salvare il progetto, cambiare backend, ricaricarlo.
 
 Se la libreria scelta non è disponibile, l'applicazione ripiega automaticamente sullo stub e lo
 segnala nei log, invece di terminare.
@@ -278,7 +291,10 @@ Costanti regolabili in `MultiPlayer/constants.py`:
 
 | Costante | Default | Effetto |
 |---|---|---|
-| `APP_VERSION` | `3.1.0` | Versione mostrata nel titolo |
+| `APP_VERSION` | `3.2.0` | Versione mostrata nel titolo |
+| `DEFAULT_BACKEND` | `'qt'` | Backend al primo avvio e fallback se la preferenza salvata non è valida |
+| `SETTINGS_ORG` / `SETTINGS_APP` | `'MultiPlayer'` | Chiavi `QSettings` delle preferenze utente |
+| `SETTINGS_BACKEND_KEY` | `'audio/backend'` | Chiave in cui è salvato il backend scelto |
 | `PROGRESS_BAR_HEIGHT` | `48` px | Altezza della progress bar/waveform |
 | `POLL_INTERVAL_MS` | `50` | Periodo del poll globale della UI (20 Hz) |
 | `FADE_TICK_MS` | `100` | Passo di aggiornamento del volume durante un fade |
@@ -288,7 +304,7 @@ Costanti regolabili in `MultiPlayer/constants.py`:
 
 Altri punti di configurazione:
 
-- `MainApp.backend` — backend audio
+- `MainApp.backend` — backend audio in uso (impostato dal menu `Configura`, persistito in QSettings)
 - `MainApp.initial_rows` / `initial_cols` — dimensione iniziale della griglia
 - `grid_manager.MAX_ROWS` — limite massimo di righe (20)
 
@@ -341,8 +357,8 @@ nello spec.
 
 **L'interfaccia funziona ma non si sente nulla.**
 Il backend scelto non è disponibile e l'applicazione ha ripiegato sullo stub. Controllare i log
-all'avvio: compare un avviso con il motivo. Verificare l'installazione del backend, o tornare al
-default `qt`.
+all'avvio: compare un avviso con il motivo. Verificare l'installazione del backend, oppure
+tornare al default `qt` da `Configura → Backend audio` e ricaricare il progetto.
 
 **Il primo play parte in ritardo.**
 All'avvio l'applicazione attiva uno stream di silenzio (*audio warmup*) proprio per evitarlo: su

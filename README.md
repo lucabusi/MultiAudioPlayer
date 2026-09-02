@@ -27,6 +27,7 @@ traccia in qualsiasi momento.
 - Salvataggio e caricamento del progetto in formato `.mpp`
 - Backend audio intercambiabili: QMediaPlayer (default, nessuna installazione extra),
   VLC, mpv o GStreamer — con fallback UI-only se nessuno è disponibile
+- Scelta del backend dal menu `Configura → Backend audio`, ricordata tra un avvio e l'altro
 
 ## Requisiti
 
@@ -56,6 +57,7 @@ MultiPlayer.py  →  mainapp.MainApp (QMainWindow)
                      ├── GridManager       posizionamento e drag & drop
                      ├── ProjectManager    serializzazione .mpp
                      ├── AudioWarmup       anti-latenza del primo play
+                     ├── QSettings         backend scelto dal menu Configura
                      ├── QTimer 50 ms      poll globale della UI
                      └── Mp3Widget[]       un widget per traccia
                            ├── Mp3File            volume, gain, fade, stato

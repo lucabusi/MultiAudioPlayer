@@ -440,10 +440,60 @@ def test_default_backend_e_quello_documentato():
         f"default del costruttore '{default}' invece di 'qt': "
         "diverge da README/requirements/mainapp")
 
-    with open(os.path.join(SRC, 'mainapp.py'), encoding='utf-8') as fh:
-        mainapp_src = fh.read()
-    assert "self.backend = 'qt'" in mainapp_src, (
-        "mainapp non usa piu' 'qt': allineare il default di Mp3File")
+    from constants import DEFAULT_BACKEND
+    assert DEFAULT_BACKEND == 'qt', (
+        f"DEFAULT_BACKEND e' '{DEFAULT_BACKEND}': allineare il default di Mp3File")
+
+
+# ---------------------------------------------------------------------------
+# feature 3.2.0 — il backend si sceglieva solo modificando il sorgente. Il menu
+# "Configura -> Backend audio" deve esporre tutti i backend registrati, cambiare
+# quello usato dai file aperti dopo e ricordare la scelta al riavvio.
+# ---------------------------------------------------------------------------
+def test_menu_configura_seleziona_e_ricorda_il_backend():
+    import tempfile
+    from PyQt5.QtCore import QSettings
+    from mp3file import available_backends
+    import mainapp as MA
+
+    _app()
+    # QSettings dirottato su un file temporaneo: i test non devono sporcare la
+    # configurazione reale dell'utente. QSettings.setPath() non basta (su Unix
+    # NativeFormat e IniFormat condividono il percorso), quindi si sostituisce
+    # la classe nel namespace di mainapp.
+    ini = os.path.join(tempfile.mkdtemp(prefix='mp_settings_'), 'test.ini')
+    orig_qsettings = MA.QSettings
+    MA.QSettings = lambda *a, **k: orig_qsettings(ini, QSettings.IniFormat)
+
+    m = MA.MainApp()
+    m.hide()
+    try:
+        menus = {a.text(): a for a in m.menuBar().actions()}
+        assert 'Configura' in menus, f"menu Configura assente: {list(menus)}"
+
+        voci = {a.text(): a for a in menus['Configura'].menu().actions()}
+        assert 'Backend audio' in voci, f"sottomenu backend assente: {list(voci)}"
+
+        azioni = {a.text(): a for a in voci['Backend audio'].menu().actions()}
+        assert set(azioni) == set(available_backends()), (
+            f"voci {sorted(azioni)} != backend registrati {sorted(available_backends())}")
+        assert azioni[m.backend].isChecked(), "backend corrente non spuntato nel menu"
+
+        target = next(n for n in available_backends() if n != m.backend)
+        azioni[target].trigger()
+        assert m.backend == target, f"backend non cambiato: {m.backend}"
+    finally:
+        m.close()
+
+    # Nuova istanza: la preferenza deve essere riletta da QSettings.
+    m2 = MA.MainApp()
+    m2.hide()
+    try:
+        assert m2.backend == target, (
+            f"backend non persistito: riavvio con '{m2.backend}' invece di '{target}'")
+    finally:
+        m2.close()
+        MA.QSettings = orig_qsettings
 
 
 def main():
