@@ -13,10 +13,14 @@ venv/
 *.suo
 *.user
 *.code-workspace
+*.exe
+build/
+dist/
 
 # audio / large generated images
 *.jpg
 *.wav
+
 test*/
 !tests/
 tests/*.mpp
