@@ -81,5 +81,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon='icon.ico',      # decommenta se hai un'icona
+    icon='icona.ico',      # decommenta se hai un'icona
+	version='version_info.txt'
 )
