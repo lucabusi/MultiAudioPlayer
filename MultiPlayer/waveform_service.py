@@ -1,7 +1,7 @@
 import logging
 import waveform as wf
-from PyQt5.QtCore import QObject, pyqtSignal, QThread, QTimer
-from PyQt5.QtGui import QPixmap
+from PySide6.QtCore import QObject, Signal, QThread, QTimer
+from PySide6.QtGui import QPixmap
 from constants import WAVEFORM_DEBOUNCE_MS, WAVEFORM_WIDTH
 from thread_registry import retain
 
@@ -17,7 +17,7 @@ def _bytes_to_pixmap(data: bytes) -> QPixmap:
 class EnvelopeThread(QThread):
     """Decodifica il file e calcola l'envelope in background (parte costosa)."""
 
-    envelope_ready = pyqtSignal(object, object, int)  # min_vals, max_vals, seq
+    envelope_ready = Signal(object, object, int)  # min_vals, max_vals, seq
 
     def __init__(self, file_path: str, width: int = WAVEFORM_WIDTH, seq: int = 0):
         super().__init__()
@@ -53,7 +53,7 @@ class WaveformService(QObject):
       non ha finito; i risultati superati vengono scartati via `seq`.
     """
 
-    waveform_upgraded = pyqtSignal(QPixmap)
+    waveform_upgraded = Signal(QPixmap)
 
     def __init__(self, parent=None):
         super().__init__(parent)

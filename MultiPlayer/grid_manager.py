@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGridLayout
+from PySide6.QtWidgets import QGridLayout
 
 MAX_ROWS = 20
 

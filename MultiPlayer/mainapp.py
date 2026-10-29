@@ -1,9 +1,9 @@
 import sys
 import os
 import logging
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox, QAction, QActionGroup
-from PyQt5.QtCore import Qt, QTimer, QSettings
-from PyQt5.QtGui import QPainter, QColor, QPen
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget, QGridLayout, QScrollArea, QMessageBox
+from PySide6.QtCore import Qt, QTimer, QSettings
+from PySide6.QtGui import QPainter, QColor, QPen, QAction, QActionGroup
 from mp3file import Mp3File, available_backends
 from audio_warmup import AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
@@ -64,7 +64,7 @@ class _DropContainer(QWidget):
         self._on_drag_enter(event)
 
     def dragMoveEvent(self, event):
-        rect = self._on_get_target_rect(event.pos())
+        rect = self._on_get_target_rect(event.position().toPoint())
         if rect is not None:
             self._overlay.set_highlight(rect)
             event.acceptProposedAction()
@@ -234,7 +234,7 @@ class MainApp(QMainWindow):
             event.ignore()
             return
 
-        target_pos = event.pos()
+        target_pos = event.position().toPoint()
         target_row, target_col = self.grid_manager.get_cell_at_pos(target_pos)
         if target_row == -1:
             event.ignore()
@@ -446,6 +446,9 @@ class MainApp(QMainWindow):
 
 
 def run_app():
+    # Il backend FFmpeg di QtMultimedia stampa su stderr un dump del formato
+    # ("Input #0, mp3, ...") per ogni file aperto: rumore puro nei log.
+    os.environ.setdefault('QT_LOGGING_RULES', 'qt.multimedia.ffmpeg*=false')
     app = QApplication(sys.argv)
     main_app = MainApp()
     return app, main_app
@@ -453,4 +456,4 @@ def run_app():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     app, main_app = run_app()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

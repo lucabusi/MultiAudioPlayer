@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 env/
 venv/
+.venv6/
 *.egg-info/
 *.dist-info/
 

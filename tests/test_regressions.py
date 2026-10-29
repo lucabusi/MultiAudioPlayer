@@ -28,13 +28,13 @@ _ARGV: list = []
 def _app():
     """QApplication condivisa dai test (Qt ne ammette una sola per processo).
 
-    Il riferimento è tenuto a livello di modulo: se lo perdessimo, PyQt5
+    Il riferimento è tenuto a livello di modulo: se lo perdessimo, PySide6
     distruggerebbe la QApplication mentre i widget sono ancora vivi e il
     processo abortirebbe. Anche `_ARGV` va tenuto in vita, non passato inline.
     """
     global _APP
     if _APP is None:
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         _APP = QApplication.instance() or QApplication(_ARGV)
     return _APP
 
@@ -42,7 +42,7 @@ def _app():
 def _pump(ms=200):
     """Fa girare l'event loop per `ms` senza bloccare: i backend caricano il
     media in modo asincrono e i fade avanzano su QTimer."""
-    from PyQt5.QtCore import QTimer
+    from PySide6.QtCore import QTimer
     app = _app()
     done = []
     QTimer.singleShot(ms, lambda: done.append(1))
@@ -56,15 +56,17 @@ def _is_green(btn):
 
 # ---------------------------------------------------------------------------
 # bug 1 — un'eccezione che esce da uno slot Qt fa abortire l'intero processo
-# (PyQt5 la trasforma in qFatal()). Serve un subprocess: se il bug rientra,
-# questo processo morirebbe senza poter riportare il fallimento.
+# (con PyQt5 un'eccezione che esce da uno slot Qt faceva abortire il processo
+# (qFatal()); con PySide6 non aborta più, ma il test resta come guardia:
+# Play/Stop non devono propagare l'errore). Serve un subprocess: se il bug
+# rientra, questo processo morirebbe senza poter riportare il fallimento.
 # ---------------------------------------------------------------------------
 _CRASH_SNIPPET = r'''
 import os, sys
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 sys.path.insert(0, r"{src}")
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
 from mp3file import Mp3File
 from mp3widget import Mp3Widget
 
@@ -83,7 +85,7 @@ w.mp3file._backend.stop = boom
 QTimer.singleShot(20, w.on_play_pause_clicked)
 QTimer.singleShot(80, w.on_stop_clicked)
 QTimer.singleShot(400, app.quit)
-app.exec_()
+app.exec()
 print('SURVIVED')
 '''
 
@@ -104,7 +106,7 @@ def test_errore_backend_non_abbatte_app():
 # ---------------------------------------------------------------------------
 def test_load_progetto_griglia_piena_non_perde_file():
     import json
-    from PyQt5 import QtWidgets
+    from PySide6 import QtWidgets
     from grid_manager import MAX_ROWS
     import mainapp as MA
 
@@ -275,7 +277,7 @@ def test_gain_a_zero_non_blocca_il_volume():
 # ---------------------------------------------------------------------------
 def test_celle_duplicate_nel_progetto_non_sovrappongono_widget():
     import json
-    from PyQt5 import QtWidgets
+    from PySide6 import QtWidgets
     import mainapp as MA
 
     _app()
@@ -345,7 +347,7 @@ def test_tempo_rimanente_mai_negativo():
 # ---------------------------------------------------------------------------
 def test_file_mancanti_un_solo_avviso():
     import json
-    from PyQt5 import QtWidgets
+    from PySide6 import QtWidgets
     import mainapp as MA
 
     _app()
@@ -388,8 +390,8 @@ def test_file_mancanti_un_solo_avviso():
 # widget sembrava inamovibile.
 # ---------------------------------------------------------------------------
 def test_drag_si_arma_da_tutto_il_corpo_del_widget():
-    from PyQt5.QtCore import Qt, QPoint
-    from PyQt5.QtGui import QMouseEvent
+    from PySide6.QtCore import Qt, QPoint, QPointF, QEvent
+    from PySide6.QtGui import QMouseEvent
     from mp3file import Mp3File
     from mp3widget import Mp3Widget
 
@@ -401,7 +403,8 @@ def test_drag_si_arma_da_tutto_il_corpo_del_widget():
 
     def premi(pos):
         w._drag_armed = False
-        app.sendEvent(w, QMouseEvent(QMouseEvent.MouseButtonPress, pos,
+        app.sendEvent(w, QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(pos),
+                                     QPointF(w.mapToGlobal(pos)),
                                      Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
         return w._drag_armed
 
@@ -456,7 +459,7 @@ def test_default_backend_e_quello_documentato():
 # ---------------------------------------------------------------------------
 def test_menu_configura_seleziona_e_ricorda_il_backend():
     import tempfile
-    from PyQt5.QtCore import QSettings
+    from PySide6.QtCore import QSettings
     from mp3file import available_backends
     import mainapp as MA
 
@@ -498,6 +501,86 @@ def test_menu_configura_seleziona_e_ricorda_il_backend():
     finally:
         m2.close()
         MA.QSettings = orig_qsettings
+
+
+# ---------------------------------------------------------------------------
+# migrazione PySide6 — in Qt6 QMediaPlayer non ha più setVolume: senza un
+# QAudioOutput collegato resta MUTO senza alcun errore. Il volume per-player
+# (requisito: volumi indipendenti) deve passare dal suo QAudioOutput con la
+# stessa curva logaritmica di prima.
+# ---------------------------------------------------------------------------
+def test_backend_qt_volume_passa_da_audio_output():
+    from mp3file import Mp3File
+
+    _app()
+    f = Mp3File(os.path.join(AUD, 'mitra.mp3'), backend='qt')
+    _pump(300)
+    try:
+        out = f._backend._player.audioOutput()
+        assert out is not None, "QMediaPlayer senza QAudioOutput: in Qt6 resta muto"
+        f._backend.set_volume(50)
+        assert abs(out.volume() - 0.1505) < 0.01, (
+            f"volume {out.volume():.4f}: attesa curva log (50 -> 0.1505)")
+    finally:
+        f.cleanup()
+
+
+# ---------------------------------------------------------------------------
+# migrazione PySide6 — QAudioOutput di Qt5 (stream PCM) è diventato QAudioSink
+# in Qt6, e il formato fisso 8 kHz mono non è supportato da tutti i device
+# (Realtek: isFormatSupported False). Il warmup deve restare attivo, non
+# degradare in silenzio a "non disponibile" — altrimenti torna il ritardo di
+# 1-2 s sul primo play dopo l'idle dell'endpoint.
+# ---------------------------------------------------------------------------
+def test_audio_warmup_attivo_se_esiste_un_device():
+    from PySide6.QtMultimedia import QMediaDevices
+    from audio_warmup import AudioWarmup
+
+    _app()
+    if QMediaDevices.defaultAudioOutput().isNull():
+        raise unittest.SkipTest("nessun device audio di output")
+    w = AudioWarmup()
+    try:
+        _pump(300)
+        assert w._io is not None, "warmup non partito: stream di silenzio assente"
+    finally:
+        w.stop()
+
+
+# ---------------------------------------------------------------------------
+# bug 15 — l'exe includeva librosa (+ scipy, sklearn, numba, llvmlite) per un
+# fallback di decode mai utile: l'app apre solo *.mp3, che libsndfile decodifica
+# nativamente, e su Windows audioread non ha ffmpeg. Guardia: con bloccati i
+# moduli che MultiPlayer.spec esclude dall'exe (EXCLUDED_MODULES) l'app si
+# importa, decodifica gli mp3, usa la cache envelope e renderizza il JPEG.
+# ---------------------------------------------------------------------------
+_NO_HEAVY_SNIPPET = r'''
+import glob, os, sys
+for m in {excluded!r} + ['sklearn', 'numba']:
+    sys.modules[m] = None   # import bloccato: ImportError se qualcuno lo usa
+sys.path.insert(0, {src!r})
+import mainapp, waveform
+for f in glob.glob(os.path.join({aud!r}, '*.mp3')):
+    assert len(waveform._decode_mono(f)) > 0, f
+    waveform.generate_waveform_mem(f, width=64)   # scrive la cache .npz
+    waveform.generate_waveform_mem(f, width=64)   # la rilegge con np.load
+'''
+
+
+def _spec_excluded_modules():
+    import ast
+    with open(os.path.join(ROOT, 'MultiPlayer.spec'), encoding='utf-8') as fh:
+        tree = ast.parse(fh.read())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', None) == 'EXCLUDED_MODULES':
+            return ast.literal_eval(node.value)
+    raise AssertionError('EXCLUDED_MODULES non trovato in MultiPlayer.spec')
+
+
+def test_app_funziona_senza_moduli_esclusi_dall_exe():
+    code = _NO_HEAVY_SNIPPET.format(excluded=_spec_excluded_modules(), src=SRC, aud=AUD)
+    r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr[-800:]
 
 
 def main():

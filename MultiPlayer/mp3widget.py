@@ -1,9 +1,9 @@
 import os
 import logging
 from enum import Enum
-from PyQt5.QtWidgets import QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QAction, QHBoxLayout, QSlider, QSizePolicy
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QMimeData
-from PyQt5.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor
+from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar, QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QHBoxLayout, QSlider, QSizePolicy
+from PySide6.QtCore import Qt, Signal, QPoint, QMimeData
+from PySide6.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor, QAction
 from mp3file import Mp3File
 from waveform_service import WaveformService
 from constants import PROGRESS_BAR_HEIGHT
@@ -27,7 +27,7 @@ def seconds_to_min_sec(seconds: int) -> str:
 
 
 class ClickableProgressBar(QProgressBar):
-    clicked = pyqtSignal(float)
+    clicked = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,7 +68,7 @@ class ClickableProgressBar(QProgressBar):
 
 
 class Mp3Widget(QWidget):
-    remove_requested = pyqtSignal(object)  # emette self
+    remove_requested = Signal(object)  # emette self
 
     def __init__(self, mp3_audio_file: Mp3File, layout: WidgetLayout = WidgetLayout.TOUCH):
         super().__init__()
@@ -116,8 +116,8 @@ class Mp3Widget(QWidget):
         return True
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and self._is_drag_handle(event.pos()):
-            self.drag_start_position = event.pos()
+        if event.button() == Qt.LeftButton and self._is_drag_handle(event.position().toPoint()):
+            self.drag_start_position = event.position().toPoint()
             self._drag_armed = True
         else:
             self._drag_armed = False
@@ -128,7 +128,7 @@ class Mp3Widget(QWidget):
             return
         if not (event.buttons() & Qt.LeftButton):
             return
-        if (event.pos() - self.drag_start_position).manhattanLength() < self.startDragDistance():
+        if (event.position().toPoint() - self.drag_start_position).manhattanLength() < self.startDragDistance():
             return
         self._drag_armed = False  # one drag per press
 
@@ -149,8 +149,8 @@ class Mp3Widget(QWidget):
         p.end()
 
         drag.setPixmap(drag_pixmap)
-        drag.setHotSpot(event.pos())
-        drag.exec_(Qt.MoveAction)
+        drag.setHotSpot(event.position().toPoint())
+        drag.exec(Qt.MoveAction)
 
     def startDragDistance(self):
         return 10
@@ -471,8 +471,9 @@ class Mp3Widget(QWidget):
     def _report_playback_error(self, action: str, exc: Exception) -> None:
         """Segnala nella UI un errore del backend senza propagarlo.
 
-        Un'eccezione che esce da uno slot Qt viene trasformata da PyQt5 in
-        `qFatal()`: l'intero processo aborta (verificato: exit 0xC0000409).
+        Un'eccezione che esce da uno slot Qt non deve mai arrivare all'event
+        loop: con PyQt5 abortiva il processo (`qFatal()`, exit 0xC0000409);
+        PySide6 la stampa e prosegue, ma lascia il widget a metà operazione.
         Un device audio perso a metà spettacolo non deve chiudere l'app, così
         i controlli restano attivi e l'operatore può ritentare."""
         logger.error(f"{action} failed for {self.mp3file.file_name}: {exc}")

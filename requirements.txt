@@ -1,15 +1,16 @@
 # Core (richiesti)
-PyQt5
+PySide6==6.12.0       # completo: QtMultimedia sta in PySide6-Addons, non in -Essentials
 numpy
 soundfile
 Pillow
 
-# Decode waveform — fallback per formati non gestiti da libsndfile (AAC, WMA, ...)
-librosa
-# matplotlib      # solo per i benchmark legacy (bench_envelope.py), non serve all'app
+# Solo per i benchmark (benchmarks/), non servono all'app né all'exe:
+# librosa
+# matplotlib
 
 # Backend audio — nessuno è obbligatorio.
-# Il predefinito è 'qt' (QMediaPlayer) e non richiede nulla: è incluso in PyQt5.
+# Il predefinito è 'qt' (QMediaPlayer) e non richiede nulla: è incluso in PySide6
+# (backend FFmpeg incorporato nel wheel, anche su Linux: niente GStreamer di sistema).
 # Senza backend funzionante, _StubBackend prende il posto (UI-only, no audio output).
 python-vlc        # opzionale: solo per il backend 'vlc' (richiede VLC di sistema)
 # python-mpv      # alternativa a VLC
