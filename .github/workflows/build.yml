@@ -1,0 +1,33 @@
+name: test-and-build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt pytest pyinstaller
+      - run: pytest tests/
+      # steps below run only if tests pass
+      - run: pyinstaller --noconfirm MultiPlayer.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MultiPlayer-windows
+          path: dist/MultiPlayer.exe
+      - name: Attach to GitHub release (tag only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MultiPlayer.exe
