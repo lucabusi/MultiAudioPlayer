@@ -7,6 +7,33 @@ project_dir = os.path.abspath(os.path.dirname(SPEC) if '__file__' not in globals
 
 block_cipher = None
 
+# Version resource dell'exe (Proprietà > Dettagli) generata da APP_VERSION:
+# niente più version_info.txt da allineare a mano a ogni bump.
+import sys
+from PyInstaller.utils.win32.versioninfo import (
+    VSVersionInfo, FixedFileInfo, StringFileInfo, StringTable, StringStruct,
+    VarFileInfo, VarStruct)
+sys.path.insert(0, os.path.join(project_dir, 'MultiPlayer'))
+from constants import APP_VERSION
+
+_ver = tuple(int(x) for x in APP_VERSION.split('.')) + (0,) * (4 - len(APP_VERSION.split('.')))
+version_info = VSVersionInfo(
+    ffi=FixedFileInfo(filevers=_ver, prodvers=_ver, mask=0x3f, flags=0x0,
+                      OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+    kids=[
+        StringFileInfo([StringTable('040904B0', [
+            StringStruct('CompanyName', 'Luca Busi'),
+            StringStruct('FileDescription', 'MultiPlayer Audio Player'),
+            StringStruct('FileVersion', APP_VERSION),
+            StringStruct('InternalName', 'MultiPlayer'),
+            StringStruct('LegalCopyright', 'Copyright © 2026 Luca Busi'),
+            StringStruct('OriginalFilename', 'MultiPlayer.exe'),
+            StringStruct('ProductName', 'MultiPlayer'),
+            StringStruct('ProductVersion', APP_VERSION),
+        ])]),
+        VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+    ])
+
 # Tutti i moduli locali del progetto, elencati esplicitamente
 local_modules = [
     'audio_warmup',
@@ -115,6 +142,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icona.ico',      # decommenta se hai un'icona
-	version='version_info.txt'
+    icon='icona.ico',
+    version=version_info,
 )
