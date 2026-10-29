@@ -1,6 +1,6 @@
 # MultiPlayer
 
-Lettore audio **multi-traccia** con interfaccia grafica in Python (PyQt5), pensato per la
+Lettore audio **multi-traccia** con interfaccia grafica in Python (PySide6), pensato per la
 regia audio di spettacoli teatrali: più cue caricate insieme in una griglia, ognuna con
 play/stop, fade, volume e gain indipendenti.
 
@@ -25,7 +25,7 @@ traccia in qualsiasi momento.
 - Griglia con drag & drop per riordinare le tracce
 - Quattro layout per widget: Touch, Standard, Compact, Compact-V (stile mixer)
 - Salvataggio e caricamento del progetto in formato `.mpp`
-- Backend audio intercambiabili: QMediaPlayer (default, nessuna installazione extra),
+- Backend audio intercambiabili: QMediaPlayer (default, backend FFmpeg incorporato, nessuna installazione extra),
   VLC, mpv o GStreamer — con fallback UI-only se nessuno è disponibile
 - Scelta del backend dal menu `Configura → Backend audio`, ricordata tra un avvio e l'altro
 
@@ -33,7 +33,7 @@ traccia in qualsiasi momento.
 
 - Python 3.10+
 - Windows o Linux
-- Nessun player esterno obbligatorio: il backend predefinito è incluso in PyQt5
+- Nessun player esterno obbligatorio: il backend predefinito è incluso in PySide6 (QtMultimedia, backend FFmpeg incorporato)
 
 ## Installazione e avvio
 

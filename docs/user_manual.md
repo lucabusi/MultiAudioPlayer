@@ -43,14 +43,13 @@ Dipendenze installate:
 
 | Pacchetto | Ruolo |
 |---|---|
-| `PyQt5` | GUI + backend audio predefinito (`QtMultimedia`) |
+| `PySide6` | GUI + backend audio predefinito (`QtMultimedia`) |
 | `numpy` | Calcolo envelope della waveform |
 | `soundfile` | Decodifica audio nativa (libsndfile) |
 | `Pillow` | Rendering della waveform in JPEG |
-| `librosa` | Fallback di decodifica per formati non gestiti da libsndfile (AAC, WMA, ALAC…) |
 | `python-vlc` | *Opzionale* — solo per il backend `vlc` |
 
-Nessun player esterno è obbligatorio: il backend predefinito (`qt`) è incluso in PyQt5.
+Nessun player esterno è obbligatorio: il backend predefinito (`qt`) è incluso in PySide6.
 VLC, mpv e GStreamer servono solo se si sceglie esplicitamente quel backend.
 
 ---
@@ -257,7 +256,7 @@ fallback.
 
 | Nome | Requisiti | Note |
 |---|---|---|
-| `qt` **(default)** | Nessuno, incluso in PyQt5 | `QMediaPlayer`. Su Windows usa WMF/DirectShow, su Linux GStreamer. Volume software per-player con curva percettiva logaritmica |
+| `qt` **(default)** | Nessuno, incluso in PySide6 | `QMediaPlayer` con backend FFmpeg incorporato (Windows e Linux). Volume software per-player via `QAudioOutput`, curva percettiva logaritmica |
 | `vlc` | VLC di sistema + `pip install python-vlc` | |
 | `mpv` | mpv di sistema + `pip install python-mpv` | |
 | `gstreamer` (alias `gst`) | `PyGObject` + plugin GStreamer di sistema | |
@@ -371,7 +370,7 @@ Il file non è riproducibile dal backend corrente (formato non supportato, tag I
 file corrotto). Le altre tracce continuano a funzionare normalmente.
 
 **Il seek non ha effetto mentre la traccia è in pausa.**
-Quirk noto del backend `qt` con DirectShow su Windows: il seek richiesto in pausa può essere
+Quirk noto del backend `qt` storico (Qt5/DirectShow su Windows), da riverificare con FFmpeg: il seek richiesto in pausa può essere
 applicato solo alla ripresa della riproduzione. In riproduzione è affidabile.
 
 **La waveform resta piatta.**
@@ -395,4 +394,4 @@ il `.mpp` va modificato con i nuovi percorsi.
 - **Nessun controllo remoto.** L'integrazione OSC è allo stato di studio in
   `docs/OSC_integration_report.md`, non implementata.
 - **Nessuna scorciatoia da tastiera** per play/stop delle singole cue.
-- **Seek in pausa** non affidabile sul backend `qt` con DirectShow (Windows).
+- **Seek in pausa** potenzialmente non affidabile sul backend `qt` (quirk storico Qt5/DirectShow, da riverificare con FFmpeg).

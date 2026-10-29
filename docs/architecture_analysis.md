@@ -16,7 +16,7 @@
 
 ## 1. Cosa fa l'applicazione (dal codice)
 
-Player audio multi-traccia PyQt5. La finestra principale ospita una griglia
+Player audio multi-traccia PySide6. La finestra principale ospita una griglia
 (max 20 righe) di widget indipendenti, uno per file MP3. Ogni widget ha:
 play/pause, stop, fade-in/out temporizzati, slider volume, gain con
 normalizzazione peak, waveform cliccabile per il seek, 4 layout alternativi,
@@ -151,7 +151,7 @@ tenere costante `effective`. Il widget risincronizza lo slider con
 
 | # | Dove | Problema |
 |---|---|---|
-| B1 | [waveform.py:52-57](../waveform.py#L52-L57) | **Crash con file audio corti.** Se `len(samples) < width` (file < ~34ms per width=1500), `min_vals` ha meno di `width` colonne ma il loop itera `range(width)` → `IndexError`. Riprodotto con numpy: crash a `x = len(samples)`. Il percorso sincrono (`WaveformService.generate` → fallback librosa → stessa funzione) propaga l'eccezione dentro lo slot `open_files`: in PyQt5 un'eccezione non gestita in uno slot **abortisce l'app**. Fix: `width_eff = min(width, n_colonne)` o padding. |
+| B1 | [waveform.py:52-57](../waveform.py#L52-L57) | **Crash con file audio corti.** Se `len(samples) < width` (file < ~34ms per width=1500), `min_vals` ha meno di `width` colonne ma il loop itera `range(width)` → `IndexError`. Riprodotto con numpy: crash a `x = len(samples)`. Il percorso sincrono (`WaveformService.generate` → fallback librosa → stessa funzione) propaga l'eccezione dentro lo slot `open_files`: con il binding Qt5 precedente un'eccezione non gestita in uno slot **abortiva l'app** (con PySide6 non più, ma lo slot resta da proteggere). Fix: `width_eff = min(width, n_colonne)` o padding. |
 | B2 | [mp3file.py:608-616](../mp3file.py#L608-L616) | **`stop()` e `pause` non fermano il fade attivo.** Solo `fade_in`/`fade_out` chiamano `_stop_active_fade`. Sequenze reali: (a) FadeOut poi Stop → il fade continua a tickare e a fine corsa richiama `stop()` + `set_volume(start)` una seconda volta; (b) FadeIn poi Play/Pause (pausa) → il volume continua a salire durante la pausa. Fix: `_stop_active_fade()` in `stop()` e nel ramo pause di `play_pause()`. |
 | B3 | [mp3file.py:32-37](../mp3file.py#L32-L37) + [mp3widget.py:532-538](../mp3widget.py#L532-L538) | **`btnNorm` resta disabilitato per sempre se l'analisi fallisce.** `RmsAnalyzerThread.run` su eccezione logga e basta: `analysis_done` non viene mai emesso, e `_on_normalize_ready` (unico punto che riabilita il bottone) non viene chiamato. Con soundfile che non decodifica il file (mp3 su libsndfile vecchia, file corrotto) il bottone muore. Fix: segnale di errore o riabilitare su `finished`. |
 | B4 | [mp3file.py:556-559](../mp3file.py#L556-L559) + mp3widget | **`load_error` e `loaded` non sono connessi da nessuno.** Se il backend fallisce l'init, il widget resta visibile e muto senza alcun feedback all'utente (solo log). |

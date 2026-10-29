@@ -6,7 +6,7 @@ import numpy as np
 import soundfile as sf
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
+from PySide6.QtCore import QObject, Signal, QTimer, QThread
 from constants import FADE_TICK_MS, FADE_STARTUP_DELAY_MS
 from thread_registry import retain
 
@@ -33,8 +33,8 @@ def compute_peak_gain(file_path: str) -> float:
 
 
 class PeakAnalyzerThread(QThread):
-    analysis_done = pyqtSignal(float)
-    analysis_failed = pyqtSignal(str)
+    analysis_done = Signal(float)
+    analysis_failed = Signal(str)
 
     def __init__(self, file_path: str):
         super().__init__()
@@ -63,8 +63,8 @@ class FadeController(QObject):
     completa subito il fade senza divisione per zero.
     """
 
-    update_volume = pyqtSignal(int)
-    finished = pyqtSignal()
+    update_volume = Signal(int)
+    finished = Signal()
 
     def __init__(self, duration, start_volume, end_volume, parent=None):
         super().__init__(parent)
@@ -430,51 +430,48 @@ class _MpvBackend(_PlaybackBackend):
 
 
 class _QtBackend(_PlaybackBackend):
-    """Backend QMediaPlayer (PyQt5.QtMultimedia). Nessuna dipendenza oltre
-    PyQt5: su Windows usa DirectShow/WMF nativi, su Linux GStreamer.
+    """Backend QMediaPlayer (PySide6.QtMultimedia). Nessuna dipendenza oltre
+    PySide6: Qt ≥ 6.5 usa il backend FFmpeg incorporato nel wheel, sia su
+    Windows sia su Linux (niente GStreamer di sistema).
 
     A differenza dei backend C (vlc/mpv/gstreamer), QMediaPlayer è un QObject
     con affinità di thread: va creato sul main thread (REQUIRES_MAIN_THREAD).
     L'init non blocca: il media viene caricato in modo asincrono e la durata
     arriva dopo — Mp3File.get_playback_info la rilegge finché non è nota.
 
-    Il volume è software e per-player: indipendente per costruzione, senza
-    i problemi di sessione dell'output mmdevice di VLC su Windows.
-
-    Quirk noto (DirectShow/Windows): il seek in PAUSA può essere applicato
-    solo alla ripresa della riproduzione; in play è affidabile.
+    In Qt6 il volume non sta più sul player ma su un QAudioOutput: ogni
+    istanza ha il suo, quindi i volumi restano indipendenti per costruzione.
+    Senza setAudioOutput il player sarebbe muto senza alcun errore.
     """
 
     REQUIRES_MAIN_THREAD: bool = True
 
-    _ERROR_NAMES = {1: 'ResourceError', 2: 'FormatError', 3: 'NetworkError',
-                    4: 'AccessDeniedError', 5: 'ServiceMissingError'}
-
     def __init__(self, file_name: str):
-        from PyQt5.QtCore import QUrl
-        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QAudio
+        from PySide6.QtCore import QUrl
+        from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QAudio
         self._QMediaPlayer = QMediaPlayer
-        self._QMediaContent = QMediaContent
         self._QAudio = QAudio
+        self._QUrl = QUrl
         self._player = QMediaPlayer()
+        self._audio_output = QAudioOutput(self._player)
+        self._player.setAudioOutput(self._audio_output)
         # Il caricamento è asincrono: un media rifiutato dal backend nativo
-        # (es. WMF che non digerisce un tag ID3 malformato) arriva DOPO
-        # l'init come segnale error. Senza propagarlo, il widget resterebbe
-        # apparentemente sano ma morto (durata 0, play inerte).
+        # arriva DOPO l'init come segnale errorOccurred. Senza propagarlo, il
+        # widget resterebbe apparentemente sano ma morto (durata 0, play inerte).
         self._error_cb = None
         self._pending_error: str | None = None
-        self._player.error.connect(self._on_player_error)
-        self._player.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(file_name))))
+        self._player.errorOccurred.connect(self._on_player_error)
+        self._player.setSource(QUrl.fromLocalFile(os.path.abspath(file_name)))
         self._volume = 100
-        self._player.setVolume(100)
+        self._audio_output.setVolume(1.0)
 
-    def _on_player_error(self, code):
-        name = self._player.errorString() or self._ERROR_NAMES.get(int(code), f'error {code}')
+    def _on_player_error(self, error, error_string):
+        name = error_string or getattr(error, 'name', str(error))
         msg = f"QMediaPlayer: {name} — file non riproducibile dal backend qt"
         if self._error_cb is not None:
             # Consegna al prossimo giro di event loop: il segnale può arrivare
             # SINCRONO dentro play() e rientrare nello stack di QMediaPlayer
-            # (verificato: crash hard, exit 0xC0000409, senza il defer).
+            # (verificato in Qt5: crash hard, exit 0xC0000409, senza il defer).
             cb = self._error_cb
             QTimer.singleShot(0, lambda: cb(msg))
         else:
@@ -491,13 +488,11 @@ class _QtBackend(_PlaybackBackend):
     def _at_end(self) -> bool:
         """True se la posizione ha raggiunto la durata nota del media.
 
-        Workaround per un bug WMF (Windows): dopo una riproduzione naturale
-        completa (senza seek) QMediaPlayer può NON emettere mai EndOfMedia e
-        restare in PlayingState con la posizione congelata sulla durata —
-        pipeline stallato. Verificato su questa macchina: mediaStatus resta
-        BufferedMedia(6) e state PlayingState(1) per sempre. In quello stato
-        is_playing() mentirebbe: Play farebbe pausa di una traccia morta e
-        fade_in sarebbe un no-op ("la canzone non riparte")."""
+        Workaround nato per un bug WMF in Qt5 (Windows): dopo una riproduzione
+        naturale completa QMediaPlayer poteva NON emettere mai EndOfMedia e
+        restare in PlayingState con la posizione congelata sulla durata.
+        Con il backend FFmpeg di Qt6 va riverificato (Task 4); il controllo è
+        innocuo se EndOfMedia arriva regolarmente, quindi resta."""
         duration = self._player.duration()
         return duration > 0 and self._player.position() >= duration
 
@@ -517,7 +512,7 @@ class _QtBackend(_PlaybackBackend):
     def get_state(self) -> PlaybackState:
         if self._player.mediaStatus() == self._QMediaPlayer.EndOfMedia:
             return PlaybackState.ENDED
-        s = self._player.state()
+        s = self._player.playbackState()
         if s == self._QMediaPlayer.PlayingState:
             return PlaybackState.ENDED if self._at_end() else PlaybackState.PLAYING
         if s == self._QMediaPlayer.PausedState:
@@ -539,16 +534,17 @@ class _QtBackend(_PlaybackBackend):
     def set_volume(self, volume: int) -> None:
         self._volume = max(0, min(100, int(volume)))
         # Curva percettiva (pattern raccomandato da Qt): il valore dello
-        # slider è trattato come scala logaritmica e convertito in lineare
-        # per setVolume — a metà slider corrisponde metà volume percepito.
+        # slider è trattato come scala logaritmica e convertito in lineare —
+        # a metà slider corrisponde metà volume percepito. QAudioOutput
+        # vuole un float 0..1 (in Qt5 setVolume prendeva un int 0..100).
         linear = self._QAudio.convertVolume(self._volume / 100.0,
                                             self._QAudio.LogarithmicVolumeScale,
                                             self._QAudio.LinearVolumeScale)
-        self._player.setVolume(round(linear * 100))
+        self._audio_output.setVolume(linear)
 
     def release(self) -> None:
         self._player.stop()
-        self._player.setMedia(self._QMediaContent())
+        self._player.setSource(self._QUrl())
         self._player.deleteLater()
 
 
@@ -557,8 +553,8 @@ class _BackendLoader(QThread):
     disponibile ripiega su _StubBackend (UI funzionante, nessun audio);
     `error` scatta solo se anche lo stub fallisce."""
 
-    ready = pyqtSignal(object)
-    error = pyqtSignal(str)
+    ready = Signal(object)
+    error = Signal(str)
 
     def __init__(self, name: str, cls, file_name: str):
         super().__init__()
@@ -602,15 +598,15 @@ def available_backends() -> list[str]:
 # ---------------------------------------------------------------------------
 
 class Mp3File(QObject):
-    fadeInFinished = pyqtSignal()
-    fadeOutFinished = pyqtSignal()
-    playback_state_changed = pyqtSignal(str)  # 'playing', 'paused', 'stopped'
-    fade_in_started = pyqtSignal()
-    fade_out_started = pyqtSignal()
-    loaded = pyqtSignal()
-    load_error = pyqtSignal(str)
-    normalize_ready = pyqtSignal(float)  # emesso con il gain calcolato
-    normalize_failed = pyqtSignal(str)
+    fadeInFinished = Signal()
+    fadeOutFinished = Signal()
+    playback_state_changed = Signal(str)  # 'playing', 'paused', 'stopped'
+    fade_in_started = Signal()
+    fade_out_started = Signal()
+    loaded = Signal()
+    load_error = Signal(str)
+    normalize_ready = Signal(float)  # emesso con il gain calcolato
+    normalize_failed = Signal(str)
 
     def __init__(self, file_name: str, backend: str = 'qt'):
         super().__init__()

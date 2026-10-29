@@ -30,13 +30,45 @@ local_modules = [
 
 # Librerie tipicamente usate per audio + GUI con waveform:
 # scegli quelle effettivamente importate dal tuo progetto
-extra_hidden = ['PyQt5.QtMultimedia']  # import lazy nel backend 'qt' (mp3file._QtBackend)
-# extra_hidden += collect_submodules('PyQt5')      # se usi PyQt5
-# extra_hidden += collect_submodules('PySide6')    # se usi PySide6
+extra_hidden = ['PySide6.QtMultimedia']  # import lazy nel backend 'qt' (mp3file._QtBackend) e in audio_warmup
+# extra_hidden += collect_submodules('PySide6')    # NON serve: gli hook PyInstaller di PySide6 raccolgono i moduli importati
 # extra_hidden += collect_submodules('pydub')      # se usi pydub
 # extra_hidden += collect_submodules('mutagen')    # tag MP3
 # extra_hidden += collect_submodules('numpy')      # waveform
 # extra_hidden += collect_submodules('matplotlib') # se plotti la waveform
+
+# Moduli che PyInstaller trova solo per import opzionali/lazy di terze parti
+# (numpy.testing, numpy.f2py, plugin PIL, librosa/scipy se installati nel
+# Python di build) e che l'app non usa mai a runtime.
+# tests/test_regressions.py legge QUESTA lista, la blocca e verifica che l'app
+# funzioni lo stesso: se aggiungi qui un modulo necessario, il test va rosso.
+EXCLUDED_MODULES = [
+    'matplotlib', 'pandas', 'scipy', 'librosa',
+    'numpy.testing', 'numpy.f2py', 'yaml', 'psutil', 'charset_normalizer', 'win32pdh',
+    'unittest', 'doctest', 'pdb', 'pydoc', 'xmlrpc', 'http', 'ftplib', 'urllib.request',
+    'ssl', '_ssl', '_hashlib',
+    'PIL.ImageTk', 'PIL._imagingtk', 'PIL.AvifImagePlugin', 'PIL._avif',
+    'PIL.WebPImagePlugin', 'PIL._webp', 'PIL.ImageCms', 'PIL._imagingcms',
+]
+
+# DLL e plugin Qt che gli hook di PySide6 raccolgono ma l'app non carica:
+# niente QML/Quick/PDF/SVG/OpenGL, nessuna traduzione Qt, solo il plugin di
+# piattaforma qwindows, il backend multimediale FFmpeg e il plugin JPEG
+# (waveform caricata con QPixmap.loadFromData).
+QT_UNUSED_DLL = ('opengl32sw', 'Qt6Quick', 'Qt6Qml', 'Qt6Pdf', 'Qt6VirtualKeyboard',
+                 'Qt6Svg', 'Qt6OpenGL', 'Qt6MultimediaWidgets')
+QT_PLUGINS_USED = ('platforms/qwindows', 'styles/', 'multimedia/ffmpegmediaplugin',
+                   'imageformats/qjpeg')
+
+
+def _qt_unused(dest):
+    d = dest.replace(os.sep, '/')
+    if not d.startswith('PySide6/'):
+        return False
+    if '/plugins/' in d:
+        return not any(p in d for p in QT_PLUGINS_USED)
+    return '/translations/' in d or os.path.basename(d).startswith(QT_UNUSED_DLL)
+
 
 a = Analysis(
     [os.path.join('MultiPlayer', 'MultiPlayer.py')],
@@ -52,12 +84,14 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=EXCLUDED_MODULES,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )
+a.binaries = [b for b in a.binaries if not _qt_unused(b[0])]
+a.datas = [d for d in a.datas if not _qt_unused(d[0])]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

@@ -29,27 +29,20 @@ def _envelope_cache_path(file_name: str, width: int = WAVEFORM_WIDTH) -> str:
 
 
 def _decode_mono(file_name: str) -> np.ndarray:
-    """Decodifica il file in float32 mono. Prova soundfile (veloce, nativo);
-    fallback su librosa (audioread/ffmpeg) per i formati che libsndfile non
-    gestisce — AAC/M4A, WMA, ALAC, ecc. L'import di librosa è lazy perché
-    costa ~1s di startup."""
-    try:
-        samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
-        if samples.ndim > 1:
-            # Downmix esplicito colonna-per-colonna: ~4x più veloce di
-            # mean(axis=1) su array interleaved (misurato: 37ms vs 148ms
-            # su 15.8M frame stereo). float32(0.5) evita l'upcast a float64.
-            mono = samples[:, 0].copy()
-            for ch in range(1, samples.shape[1]):
-                mono += samples[:, ch]
-            mono *= np.float32(1.0 / samples.shape[1])
-            return mono
-        return samples
-    except Exception as exc:
-        logger.debug(f"soundfile decode failed ({exc}); falling back to librosa")
-        import librosa  # lazy import — librosa is heavy
-        samples, _ = librosa.load(file_name, sr=None, mono=True)
-        return samples
+    """Decodifica il file in float32 mono con soundfile (libsndfile >= 1.1
+    decodifica MP3 nativamente; l'app apre solo *.mp3). Se fallisce, solleva:
+    WaveformService logga e il widget resta senza waveform."""
+    samples, _ = sf.read(file_name, dtype='float32', always_2d=False)
+    if samples.ndim > 1:
+        # Downmix esplicito colonna-per-colonna: ~4x più veloce di
+        # mean(axis=1) su array interleaved (misurato: 37ms vs 148ms
+        # su 15.8M frame stereo). float32(0.5) evita l'upcast a float64.
+        mono = samples[:, 0].copy()
+        for ch in range(1, samples.shape[1]):
+            mono += samples[:, ch]
+        mono *= np.float32(1.0 / samples.shape[1])
+        return mono
+    return samples
 
 
 def _envelope_from_samples(samples: np.ndarray, width: int) -> tuple[np.ndarray, np.ndarray]:
@@ -122,14 +115,4 @@ def generate_waveform_mem(file_name, width=WAVEFORM_WIDTH,
                           height=WAVEFORM_HEIGHT, gain=1.0) -> bytes:
     """Decode (con cache envelope) + render in un colpo solo."""
     min_vals, max_vals = compute_envelope(file_name, width)
-    return render_envelope(min_vals, max_vals, height, gain)
-
-
-def generate_waveform_librosa(file_name, width=WAVEFORM_WIDTH,
-                              height=WAVEFORM_HEIGHT, gain=1.0) -> bytes:
-    """Come generate_waveform_mem ma forza il decode via librosa, senza cache.
-    Mantenuta per i benchmark (bench_envelope.py) e come utilità di confronto."""
-    import librosa  # lazy import — librosa is heavy
-    samples, _ = librosa.load(file_name, sr=None, mono=True)
-    min_vals, max_vals = _envelope_from_samples(samples, width)
     return render_envelope(min_vals, max_vals, height, gain)

@@ -4,8 +4,7 @@ Benchmark dei metodi di generazione waveform.
 Le 4 implementazioni "legacy" (mpl-plot, mpl-rosa, pil-librosa, sf-HS) vivono
 qui come funzioni private — usate solo per confronto storico nel benchmark,
 non in produzione. waveform.py espone solo `generate_waveform_mem` (pipeline
-runtime, soundfile-based) e `generate_waveform_librosa` (fallback per formati
-che soundfile non gestisce, audioread/ffmpeg-backed).
+runtime, soundfile-based).
 
 Metodi testati:
   _generate_waveform               librosa + matplotlib (plt.plot)         [legacy]
@@ -13,7 +12,6 @@ Metodi testati:
   _generate_waveform_pillow        librosa + PIL ImageDraw per-column      [legacy]
   _generate_waveform_HS            soundfile + numpy + PIL → path          [legacy]
   wf.generate_waveform_mem         soundfile + numpy + PIL → bytes         [produzione]
-  wf.generate_waveform_librosa     librosa.load (audioread/ffmpeg) → bytes [fallback]
 
 Uso:
     python bench_envelope.py
@@ -159,7 +157,6 @@ STRATEGIES = [
     ("pil-librosa", "_generate_waveform_pillow",     lambda p, d: _generate_waveform_pillow(p, d)),
     ("sf-HS",       "_generate_waveform_HS",         lambda p, d: _generate_waveform_HS(p, d)),
     ("sf-mem",      "wf.generate_waveform_mem",      lambda p, d: wf.generate_waveform_mem(p)),
-    ("lib-mem",     "wf.generate_waveform_librosa",  lambda p, d: wf.generate_waveform_librosa(p)),
 ]
 
 

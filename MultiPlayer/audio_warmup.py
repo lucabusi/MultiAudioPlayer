@@ -6,7 +6,7 @@ chiusura.
 """
 import logging
 
-from PyQt5.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,8 @@ class AudioWarmup(QObject):
     Su Windows il primo stream dopo che il dispositivo è andato in idle
     (tipico: HDMI, Bluetooth, USB) impiega 1-2 secondi ad aprirsi e l'inizio
     della traccia va perso — inaccettabile per una cue teatrale. Uno stream
-    PCM di zeri (~176 KB/s, CPU trascurabile) mantiene la sessione WASAPI e
-    l'endpoint attivi per tutta la durata della sessione.
+    PCM di zeri (CPU trascurabile, via QAudioSink di Qt6) mantiene la
+    sessione WASAPI e l'endpoint attivi per tutta la durata della sessione.
 
     Se il dispositivo audio non è disponibile fallisce in silenzio: è solo
     un'ottimizzazione, la riproduzione vera non dipende da questo oggetto.
@@ -30,23 +30,27 @@ class AudioWarmup(QObject):
         self._io = None
         self._timer = None
         try:
-            from PyQt5.QtMultimedia import QAudioOutput, QAudioFormat
+            from PySide6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices
+            device = QMediaDevices.defaultAudioOutput()
+            if device.isNull():
+                raise RuntimeError('nessun device audio di output')
             # 8 kHz mono: il minimo che tiene aperta la sessione — il mixer
             # di sistema resample, a noi interessa solo che l'endpoint resti
-            # attivo. 16 KB/s di zeri, feed ogni 250ms su un buffer ampio.
+            # attivo. Non tutti i device lo accettano in Qt6 (verificato:
+            # Realtek no): in quel caso si usa il formato nativo del device.
             fmt = QAudioFormat()
             fmt.setSampleRate(8000)
             fmt.setChannelCount(1)
-            fmt.setSampleSize(16)
-            fmt.setCodec('audio/pcm')
-            fmt.setByteOrder(QAudioFormat.LittleEndian)
-            fmt.setSampleType(QAudioFormat.SignedInt)
-            self._out = QAudioOutput(fmt, self)
-            self._out.setBufferSize(32768)  # ~2s di margine
+            fmt.setSampleFormat(QAudioFormat.Int16)
+            if not device.isFormatSupported(fmt):
+                fmt = device.preferredFormat()
+            self._out = QAudioSink(device, fmt, self)
+            self._out.setBufferSize(fmt.bytesForDuration(2_000_000))  # ~2s di margine
             self._io = self._out.start()  # push mode
             if self._io is None:
-                raise RuntimeError('QAudioOutput.start() ha restituito None')
-            self._silence = bytes(8192)
+                raise RuntimeError('QAudioSink.start() ha restituito None')
+            # Silenzio = byte a zero per tutti i formati PCM interi/float.
+            self._silence = bytes(fmt.bytesForDuration(500_000))  # 0.5 s per feed
             self._timer = QTimer(self)
             self._timer.timeout.connect(self._feed)
             self._timer.start(250)
