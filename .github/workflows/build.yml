@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install -r requirements.txt pytest pyinstaller
+      - run: pip install -r requirements.txt pytest pytest-github-actions-annotate-failures pyinstaller
       - run: pytest tests/
       # steps below run only if tests pass
       - run: pyinstaller --noconfirm MultiPlayer.spec
