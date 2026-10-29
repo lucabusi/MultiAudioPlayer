@@ -640,17 +640,18 @@ I test girano offscreen e non coprono resa grafica né audio udibile (CLAUDE.md)
 - [ ] **Step 1: Checklist manuale su Windows (`python MultiPlayer/MultiPlayer.py` da `.venv6`)**
 
 Ogni voce: OK / KO. Un KO = bug → `superpowers:systematic-debugging` + test di regressione.
+Esito utente 2026-10-29 (PySide6 6.12): 1-2-3-4-6-10 OK; 5, 8, 9 da provare.
+Voce "Salva/Carica `.mpp` creato con PyQt5" rimossa su richiesta utente.
 
-1. 4+ file in riproduzione simultanea, volumi e gain indipendenti (muovere lo slider di uno non cambia gli altri).
-2. Fade in / fade out / pausa durante il fade (indicatore `btnFadeOut` si spegne).
-3. Fine naturale della traccia senza seek, poi Play: **riparte dall'inizio** (era il bug WMF di Qt5; con FFmpeg verificare se EndOfMedia arriva — loggare `mediaStatus` una volta).
-4. Seek durante pausa, poi Play: parte dalla posizione scelta (in Qt5/DirectShow il seek in pausa era inaffidabile).
-5. File con tag ID3v2.4 malformato (vedi memoria `wmf-id3-invalidmedia`): con FFmpeg viene riprodotto? Se sì, aggiornare la memoria; se no, il widget deve mostrare `⚠` e non crashare.
-6. Drag & drop dei widget nella griglia (evidenziazione cella, drop, nessuna colonna fantasma).
-7. Salva/Carica progetto `.mpp` creato con la versione PyQt5: si apre identico.
-8. Menu Configura → Backend audio: cambio backend e persistenza al riavvio.
-9. HiDPI: in Qt6 lo scaling è sempre attivo. Con scaling Windows 125%/150% controllare layout Compact/Touch/Standard/Compact-V, waveform nitida, nessun testo tagliato.
-10. Primo Play dopo ≥ 1 min di idle del device: nessun taglio iniziale (warmup).
+- [x] 1. 4+ file in riproduzione simultanea, volumi e gain indipendenti (muovere lo slider di uno non cambia gli altri).
+- [x] 2. Fade in / fade out / pausa durante il fade (indicatore `btnFadeOut` si spegne).
+- [x] 3. Fine naturale della traccia senza seek, poi Play: **riparte dall'inizio** (era il bug WMF di Qt5; workaround `_at_end()` mantenuto).
+- [x] 4. Seek durante pausa, poi Play: parte dalla posizione scelta (quirk Qt5/DirectShow sparito con FFmpeg; tolto dal manuale).
+- [ ] 5. File con tag ID3v2.4 malformato (vedi memoria `wmf-id3-invalidmedia`): con FFmpeg viene riprodotto? Se sì, aggiornare la memoria; se no, il widget deve mostrare `⚠` e non crashare.
+- [x] 6. Drag & drop dei widget nella griglia (evidenziazione cella, drop, nessuna colonna fantasma).
+- [ ] 8. Menu Configura → Backend audio: cambio backend e persistenza al riavvio.
+- [ ] 9. HiDPI: in Qt6 lo scaling è sempre attivo. Con scaling Windows 125%/150% controllare layout Compact/Touch/Standard/Compact-V, waveform nitida, nessun testo tagliato.
+- [x] 10. Primo Play dopo ≥ 1 min di idle del device: nessun taglio iniziale (warmup).
 
 - [ ] **Step 2: Verifica su Linux**
 

@@ -369,10 +369,6 @@ l'applicazione.
 Il file non è riproducibile dal backend corrente (formato non supportato, tag ID3 malformato,
 file corrotto). Le altre tracce continuano a funzionare normalmente.
 
-**Il seek non ha effetto mentre la traccia è in pausa.**
-Quirk noto del backend `qt` storico (Qt5/DirectShow su Windows), da riverificare con FFmpeg: il seek richiesto in pausa può essere
-applicato solo alla ripresa della riproduzione. In riproduzione è affidabile.
-
 **La waveform resta piatta.**
 Il calcolo è ancora in corso, oppure la decodifica è fallita. Nel secondo caso compare un avviso
 nei log; l'audio continua comunque a funzionare.
@@ -394,4 +390,3 @@ il `.mpp` va modificato con i nuovi percorsi.
 - **Nessun controllo remoto.** L'integrazione OSC è allo stato di studio in
   `docs/OSC_integration_report.md`, non implementata.
 - **Nessuna scorciatoia da tastiera** per play/stop delle singole cue.
-- **Seek in pausa** potenzialmente non affidabile sul backend `qt` (quirk storico Qt5/DirectShow, da riverificare con FFmpeg).
