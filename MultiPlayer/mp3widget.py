@@ -20,6 +20,8 @@ class WidgetLayout(Enum):
     TOUCH = 2
     STANDARD = 3
     COMPACT_V = 4
+    DENSE_A = 5
+    STRIP_A = 6
 
 
 def seconds_to_min_sec(seconds: int) -> str:
@@ -212,6 +214,8 @@ class Mp3Widget(QWidget):
         self.lblElapsedTime = QLabel("Elapsed Time: 00:00")
         self.lblElapsedTime.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self.lblRemainingTime = QLabel(f"Remaining Time: {seconds_to_min_sec(int(self.mp3file.mp3_total_duration / 1000))}")
+        self._default_texts = {w: w.text() for w in (
+            self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut)}
         self.btnFadePreset1 = QPushButton("1")
         self.btnFadePreset1.clicked.connect(lambda: self.spinboxFadeTime.setValue(1))
         self.btnFadePreset2 = QPushButton("3")
@@ -249,7 +253,28 @@ class Mp3Widget(QWidget):
         action_compact_v.triggered.connect(lambda: self.set_layout(WidgetLayout.COMPACT_V))
         layout_menu.addAction(action_compact_v)
 
+        action_dense_a = QAction("Dense A", self)
+        action_dense_a.triggered.connect(lambda: self.set_layout(WidgetLayout.DENSE_A))
+        layout_menu.addAction(action_dense_a)
+
+        action_strip_a = QAction("Strip A", self)
+        action_strip_a.triggered.connect(lambda: self.set_layout(WidgetLayout.STRIP_A))
+        layout_menu.addAction(action_strip_a)
+
         self.btnChangeLayout.setMenu(layout_menu)
+        self.layout_menu = layout_menu
+
+        # Solo STRIP_A: le azioni secondarie stanno nel menu "⋯".
+        self.btnMore = QToolButton()
+        self.btnMore.setText("⋯")
+        self.btnMore.setPopupMode(QToolButton.InstantPopup)
+        more_menu = QMenu(self)
+        more_menu.addMenu(layout_menu)
+        more_menu.addAction("Rimuovi", self.on_remove_clicked)
+        more_menu.addAction("Norm", self.on_normalize_clicked)
+        for secs in (1, 3, 5):
+            more_menu.addAction(f"Fade {secs}s", lambda s=secs: self.set_fade_time(s))
+        self.btnMore.setMenu(more_menu)
 
         self.widget_layout = QVBoxLayout()
         self.widget_layout.setContentsMargins(0, 0, 0, 0)
@@ -277,6 +302,23 @@ class Mp3Widget(QWidget):
         for r in range(self.widget_file_frame_layout.rowCount()):
             self.widget_file_frame_layout.setRowStretch(r, 0)
 
+        # Reset di ciò che i singoli layout modificano (dimensioni, testi,
+        # stylesheet): senza, il layout precedente lascia residui.
+        self.progress_bar.setFixedHeight(PROGRESS_BAR_HEIGHT)
+        self.progress_bar.setMinimumWidth(0)
+        self.progress_bar.setMaximumWidth(16777215)
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(16777215)
+        self.lblRemainingTime.setStyleSheet("")
+        self.lblRemainingTime.setWordWrap(False)
+        for lbl in (self.filename_label, self.lblRemainingTime):
+            lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.slidVolume.setStyleSheet("")
+        self.filename_label.setWordWrap(False)
+        for w, text in self._default_texts.items():
+            w.setText(text)
+        self.slidVolume.setMinimumSize(0, 0)
+
         # SizePolicy default del widget; COMPACT_V la sovrascrive ad Expanding vert.
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
@@ -288,6 +330,10 @@ class Mp3Widget(QWidget):
             self._apply_compact_v_layout(layout)
         elif self.widgetLayout == WidgetLayout.TOUCH:
             self._apply_touch_layout(layout)
+        elif self.widgetLayout == WidgetLayout.DENSE_A:
+            self._apply_dense_a_layout(layout)
+        elif self.widgetLayout == WidgetLayout.STRIP_A:
+            self._apply_strip_a_layout(layout)
         else:
             self._apply_standard_layout(layout)
 
@@ -420,6 +466,76 @@ class Mp3Widget(QWidget):
         layout.addWidget(self.progress_bar, 2, 0, 2, 11)
         layout.addWidget(self.lblRemainingTime, 1, 3, 1, 2)
         layout.addWidget(self.lblElapsedTime, 1, 1, 1, 2)
+
+    def _apply_dense_a_layout(self, layout):
+        """Riga singola da tabella: tutto su una riga, progress bar corta.
+        Volume slider orizzontale. Il layout switch resta in fondo come via
+        d'uscita; niente Remove."""
+        self.slidVolume.setOrientation(Qt.Horizontal)
+        self.progress_bar.setFixedHeight(18)
+        self.progress_bar.setFixedWidth(170)
+        for btn in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut):
+            btn.setText("")  # solo icona del tema
+
+        for btn in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut,
+                    self.btnChangeLayout, self.spinboxFadeTime, self.spinboxGain):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.slidVolume.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.slidVolume.setMinimumWidth(80)
+
+        layout.setColumnStretch(2, 1)  # filename
+
+        layout.addWidget(self.btnPlay,          0, 0)
+        layout.addWidget(self.btnStop,          0, 1)
+        layout.addWidget(self.filename_label,   0, 2)
+        layout.addWidget(self.progress_bar,     0, 3)
+        layout.addWidget(self.lblElapsedTime,   0, 4)
+        layout.addWidget(self.lblRemainingTime, 0, 5)
+        layout.addWidget(self.spinboxFadeTime,  0, 6)
+        layout.addWidget(self.spinboxGain,      0, 7)
+        layout.addWidget(self.slidVolume,       0, 8)
+        layout.addWidget(self.lblVolume,        0, 9)
+        layout.addWidget(self.btnFadeIn,        0, 10)
+        layout.addWidget(self.btnFadeOut,       0, 11)
+        layout.addWidget(self.btnChangeLayout,  0, 12)
+
+    def _apply_strip_a_layout(self, layout):
+        """Channel strip stretto e alto: nome, tempo, fader verticale, gain,
+        fade e transport impilati su due colonne. Le azioni secondarie
+        (layout, rimuovi, norm, fade time) stanno nel menu "⋯"."""
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.setMaximumWidth(176)
+        self.slidVolume.setOrientation(Qt.Vertical)
+        self.slidVolume.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.slidVolume.setMinimumHeight(160)
+        self.filename_label.setWordWrap(True)
+        self.lblRemainingTime.setStyleSheet("font-size: 12px;")
+        # Il minimumSizeHint delle label (nome, "Remaining Time: ..") supera i
+        # 176px: Ignored lascia al layout la larghezza, il testo va a capo.
+        self.lblRemainingTime.setWordWrap(True)
+        for lbl in (self.filename_label, self.lblRemainingTime):
+            lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.progress_bar.setFixedHeight(4)
+        self.btnFadeIn.setText("IN")
+        self.btnFadeOut.setText("OUT")
+        self.btnPlay.setText("")  # solo icona del tema
+        self.btnStop.setText("")
+
+        for btn in (self.btnMore, self.btnPlay, self.btnStop, self.btnFadeIn,
+                    self.btnFadeOut, self.spinboxGain):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        layout.addWidget(self.btnMore,          0, 0, 1, 2)
+        layout.addWidget(self.filename_label,   1, 0, 1, 2)
+        layout.addWidget(self.lblRemainingTime, 2, 0, 1, 2)
+        layout.addWidget(self.progress_bar,     3, 0, 1, 2)
+        layout.addWidget(self.slidVolume,       4, 0, 1, 2, Qt.AlignHCenter)
+        layout.addWidget(self.lblVolume,        5, 0)
+        layout.addWidget(self.spinboxGain,      5, 1)
+        layout.addWidget(self.btnFadeIn,        6, 0)
+        layout.addWidget(self.btnFadeOut,       6, 1)
+        layout.addWidget(self.btnPlay,          7, 0)
+        layout.addWidget(self.btnStop,          7, 1)
 
     def changeButtonStyle(self, btn, color):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")

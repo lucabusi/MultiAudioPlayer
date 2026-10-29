@@ -139,6 +139,8 @@ widget. Il layout viene salvato nel progetto.
 | `STANDARD` | Tutti i controlli compatti su 3 righe, slider orizzontale — mouse e tastiera |
 | `COMPACT` | Solo Play/Stop, nome file, tempo e volume su 2 righe — playlist dense |
 | `COMPACT_V` | Canale verticale stile mixer, fader alto, senza progress bar né waveform |
+| `DENSE_A` | Una sola riga stile tabella: trasporto, nome, mini-waveform, tempi, fade, gain, volume — per cue-list lunghe |
+| `STRIP_A` | Channel strip verticale stretta: tempo, fader, IN/OUT, Play/Stop; Layout, Rimuovi, Norm e durata fade nel menu "⋯" |
 
 ---
 

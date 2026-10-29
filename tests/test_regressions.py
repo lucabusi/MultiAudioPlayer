@@ -583,8 +583,139 @@ def test_app_funziona_senza_moduli_esclusi_dall_exe():
     assert r.returncode == 0, r.stderr[-800:]
 
 
+# ---------------------------------------------------------------------------
+# nuovi layout per-widget (DENSE_A, STRIP_A):
+# devono comporsi, non lasciare residui sui 4 layout storici, sopravvivere al
+# salvataggio .mpp e tenere sincronizzati i controlli aggiunti.
+# ---------------------------------------------------------------------------
+_COMUNI = ['filename_label', 'progress_bar', 'btnPlay', 'btnStop', 'btnFadeIn',
+           'btnFadeOut', 'slidVolume', 'lblVolume', 'spinboxGain']
+_NUOVI_LAYOUT = {
+    # layout: (widget attesi nel grid, widget che NON devono esserci)
+    'DENSE_A': (_COMUNI + ['lblElapsedTime', 'lblRemainingTime', 'spinboxFadeTime',
+                           'btnChangeLayout'], ['btnRemove']),
+    'STRIP_A': (_COMUNI + ['btnMore', 'lblRemainingTime'],
+                ['btnChangeLayout', 'btnRemove', 'btnNorm']),
+}
+_VECCHI_LAYOUT = ['COMPACT', 'COMPACT_V', 'TOUCH', 'STANDARD']
+_ATTRS_POS = sorted({a for e, n in _NUOVI_LAYOUT.values() for a in e + n}
+                    | {'btnNorm', 'btnChangeLayout', 'btnRemove', 'lblElapsedTime',
+                       'lblRemainingTime', 'spinboxFadeTime', 'fade_preset_widget'})
+
+
+def _nuovo_widget(layout='STANDARD', fname='pink_panther.mp3'):
+    from mp3file import Mp3File
+    from mp3widget import Mp3Widget, WidgetLayout
+    _app()
+    return Mp3Widget(Mp3File(os.path.join(AUD, fname), backend='qt'), layout=WidgetLayout[layout])
+
+
+def _posizioni(w):
+    g = w.widget_file_frame_layout
+    out = {}
+    for a in _ATTRS_POS:
+        i = g.indexOf(getattr(w, a))
+        out[a] = g.getItemPosition(i) if i >= 0 else None
+    return out
+
+
+def test_nuovi_layout_si_compongono_con_tutti_i_controlli_visibili():
+    for name, (attesi, assenti) in _NUOVI_LAYOUT.items():
+        w = _nuovo_widget(name)
+        pos = _posizioni(w)
+        w.show()
+        _pump(50)
+        mancanti = [a for a in attesi if pos[a] is None]
+        presenti = [a for a in assenti if pos[a] is not None]
+        nascosti = [a for a in attesi if getattr(w, a).isHidden()]
+        righe = {p[0] for p in pos.values() if p}
+        w.shutdown()
+        assert not mancanti, f"{name}: non nel grid {mancanti}"
+        assert not presenti, f"{name}: non devono essere nel grid {presenti}"
+        assert not nascosti, f"{name}: nascosti {nascosti}"
+        if name == 'DENSE_A':
+            assert righe == {0}, f"{name}: righe {righe}"
+
+
+def test_geometrie_specifiche_dei_nuovi_layout():
+    from PySide6.QtCore import Qt
+    w = _nuovo_widget('DENSE_A')
+    w.show(); _pump(50)
+    assert w.btnPlay.text() == ''   # solo icona del tema
+    assert (w.progress_bar.height(), w.progress_bar.width()) == (18, 170)
+    assert w.progress_bar.receivers("2clicked(double)") >= 1   # seek ancora collegato
+    w.set_layout(type(w.widgetLayout).STRIP_A); _pump(50)
+    assert w.maximumWidth() == 176 and w.slidVolume.orientation() == Qt.Vertical
+    w.shutdown()
+
+
+def test_nuovi_layout_non_lasciano_residui_sui_vecchi():
+    from mp3widget import WidgetLayout
+    from constants import PROGRESS_BAR_HEIGHT
+    base = {n: _posizioni(_nuovo_widget(n)) for n in _VECCHI_LAYOUT}
+    w = _nuovo_widget('STANDARD')
+    for n in list(_NUOVI_LAYOUT) + _VECCHI_LAYOUT:
+        w.set_layout(WidgetLayout[n])
+    for n in _VECCHI_LAYOUT:
+        w.set_layout(WidgetLayout[n])
+        assert _posizioni(w) == base[n], f"{n}: posizioni diverse da widget fresco"
+    w.set_layout(WidgetLayout.STANDARD)
+    w.show(); _pump(50)
+    esito = (w.btnPlay.text(), w.progress_bar.height(), w.progress_bar.maximumWidth(),
+             w.maximumWidth(), w.lblRemainingTime.styleSheet(), w.filename_label.wordWrap(),
+             w.slidVolume.minimumHeight())
+    w.shutdown()
+    assert esito == ('Play/Pause', PROGRESS_BAR_HEIGHT, 16777215, 16777215, '', False, 0), esito
+
+
+def test_nuovi_layout_salvati_e_ricaricati_nel_progetto():
+    import project_manager
+    from mp3widget import WidgetLayout
+    for name in _NUOVI_LAYOUT:
+        w = _nuovo_widget('STANDARD')
+        w.set_layout(WidgetLayout[name])
+        state = w.to_state()
+        f = w.mp3file.file_name
+        w.shutdown()
+        assert state['layout'] == name
+        w2 = _nuovo_widget('STANDARD')
+        w2.apply_state(state)
+        assert w2.widgetLayout.name == name
+        w2.shutdown()
+    w3 = _nuovo_widget('STANDARD')
+    w3.apply_state({'layout': 'NON_ESISTE'})   # layout sconosciuto: resta quello attuale
+    assert w3.widgetLayout.name == 'STANDARD'
+    w3.shutdown()
+    assert project_manager.CURRENT_VERSION == '1.2'
+
+
+def test_menu_layout_ha_una_voce_per_ogni_layout():
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('STRIP_A')
+    voci = [a.text() for a in w.btnChangeLayout.menu().actions()]
+    w.shutdown()
+    assert len(voci) == len(WidgetLayout) == 6, voci
+
+
+def test_strip_a_menu_piu_fade_e_sottomenu_layout():
+    w = _nuovo_widget('STRIP_A')
+    menu = w.btnMore.menu()
+    sottomenu = [a for a in menu.actions() if a.menu() is w.layout_menu]
+    fade3 = [a for a in menu.actions() if a.text() == 'Fade 3s']
+    assert sottomenu and fade3, [a.text() for a in menu.actions()]
+    w.set_fade_time(5)
+    fade3[0].trigger()
+    esito = w.fade_time
+    w.set_layout(type(w.widgetLayout).STANDARD)
+    w.show(); _pump(50)
+    ripristino = (w.maximumWidth(), w.filename_label.wordWrap())
+    w.shutdown()
+    assert esito == 3
+    assert ripristino == (16777215, False)
+
+
 def main():
-    tests = [(n, o) for n, o in sorted(globals().items())
+    tests =[(n, o) for n, o in sorted(globals().items())
              if n.startswith('test_') and callable(o)]
     falliti = 0
     for name, fn in tests:
