@@ -1,6 +1,10 @@
 from PySide6.QtWidgets import QGridLayout
 
 MAX_ROWS = 20
+QWIDGETSIZE_MAX = 16777215
+# Una riga di channel strip prende quasi tutta l'altezza, ma le righe vuote
+# restano abbastanza alte da fare da drop target.
+TALL_ROW_STRETCH = 30
 
 
 class GridManager:
@@ -20,25 +24,38 @@ class GridManager:
 
         Rows: all rows from 0 to max_occupied_row get stretch=1, ensuring no
         row between the top and the last widget collapses (e.g. when a drag
-        places a widget at row=7 with no widgets in rows 5-6). Rows beyond
-        max_occupied are left untouched so previously expanded rows aren't
-        shrunk back when widgets above them are removed.
+        places a widget at row=7 with no widgets in rows 5-6). Empty rows below
+        keep their height, so previously expanded rows aren't shrunk back when
+        widgets above them are removed.
+
+        Widget con una dimensione massima (DENSE_A, STRIP_A): se occupano da
+        soli una riga o una colonna, questa si stringe al widget e lo spazio
+        libero va a una riga o colonna vuota, altrimenti Qt li distanzierebbe.
         """
         occupied_cols = set()
         occupied_rows = set()
+        wide_cols = set()    # colonne con almeno un widget senza larghezza massima
+        tall_rows = set()    # righe con almeno un widget senza altezza massima
+        strip_rows = set()   # righe con almeno un widget a larghezza limitata
         for i in range(self._layout.count()):
             item = self._layout.itemAt(i)
             if item and item.widget():
                 row, col, _, _ = self._layout.getItemPosition(i)
                 occupied_cols.add(col)
                 occupied_rows.add(row)
+                if item.widget().maximumWidth() == QWIDGETSIZE_MAX:
+                    wide_cols.add(col)
+                else:
+                    strip_rows.add(row)
+                if item.widget().maximumHeight() == QWIDGETSIZE_MAX:
+                    tall_rows.add(row)
 
         max_col = max(occupied_cols, default=-1)
         num_cols = max(max_col + 1, self._initial_cols)
 
         for c in range(max(num_cols, self._layout.columnCount())):
             if c in occupied_cols:
-                self._layout.setColumnStretch(c, 1)
+                self._layout.setColumnStretch(c, 1 if c in wide_cols else 0)
                 self._layout.setColumnMinimumWidth(c, 0)
             else:
                 self._layout.setColumnStretch(c, 0)
@@ -46,9 +63,21 @@ class GridManager:
                 # è un residuo di un layout precedente e deve collassare.
                 self._layout.setColumnMinimumWidth(c, 60 if c < num_cols else 0)
 
+        if occupied_cols and not wide_cols:
+            self._layout.setColumnStretch(num_cols, 1)
+
         max_row = max(occupied_rows, default=-1)
         for r in range(max_row + 1):
-            self._layout.setRowStretch(r, 1)
+            if r in strip_rows:
+                self._layout.setRowStretch(r, TALL_ROW_STRETCH)
+            elif r in occupied_rows and r not in tall_rows:
+                self._layout.setRowStretch(r, 0)
+            else:
+                self._layout.setRowStretch(r, 1)
+        # Almeno una riga vuota sotto l'ultima assorbe lo spazio libero.
+        for r in range(max_row + 1, max(self._layout.rowCount(), max_row + 2)):
+            if self._layout.rowStretch(r) == 0:
+                self._layout.setRowStretch(r, 1)
 
     def get_cell_at_pos(self, pos) -> tuple[int, int]:
         for r in range(self._layout.rowCount()):
