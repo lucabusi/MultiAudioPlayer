@@ -192,6 +192,7 @@ class Mp3Widget(QWidget):
         self.btnFadeIn.setIcon(QIcon.fromTheme("go-up"))
         self.btnFadeIn.clicked.connect(self.on_fade_in_clicked)
         self.spinboxFadeTime = QDoubleSpinBox()
+        self.spinboxFadeTime.setAlignment(Qt.AlignRight)
         self.spinboxFadeTime.setRange(0, 10)
         self.spinboxFadeTime.setValue(self.fade_time)
         self.spinboxFadeTime.setSingleStep(0.5)
@@ -214,16 +215,17 @@ class Mp3Widget(QWidget):
         self.slidVolume.setValue(self.mp3file.actual_volume)
         self.slidVolume.valueChanged.connect(self.update_volume)
         self.lblVolume = QLabel("100")
-        self.lblVolume.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.lblVolume.setAlignment(Qt.AlignCenter)
         self.spinboxGain = QDoubleSpinBox()
+        self.spinboxGain.setAlignment(Qt.AlignHCenter)
         self.spinboxGain.setRange(0.0, 5.0)
         self.spinboxGain.setSingleStep(0.05)
         self.spinboxGain.setDecimals(2)
         self.spinboxGain.setValue(self.mp3file.gain)
         self.spinboxGain.setPrefix("G:")
         self.spinboxGain.valueChanged.connect(self._on_gain_changed)
-        self.lblElapsedTime = QLabel("Elapsed Time: 00:00")
-        self.lblElapsedTime.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.lblElapsedTime = QLabel("Elapsed: 00:00")
+        self.lblElapsedTime.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.lblRemainingTime = QLabel()
         self._refresh_time_labels()
         self._default_texts = {w: w.text() for w in (
@@ -234,6 +236,11 @@ class Mp3Widget(QWidget):
         self.btnFadePreset2.clicked.connect(lambda: self.spinboxFadeTime.setValue(3))
         self.btnFadePreset3 = QPushButton("5")
         self.btnFadePreset3.clicked.connect(lambda: self.spinboxFadeTime.setValue(5))
+        # Con la policy Fixed predefinita i preset non riempiono la loro cella.
+        for btn in (self.btnFadePreset1, self.btnFadePreset2, self.btnFadePreset3):
+            policy = btn.sizePolicy()
+            policy.setVerticalPolicy(QSizePolicy.Preferred)
+            btn.setSizePolicy(policy)
 
         fade_preset_layout = QHBoxLayout()
         fade_preset_layout.setContentsMargins(0, 0, 0, 0)
@@ -314,17 +321,6 @@ class Mp3Widget(QWidget):
             w.setText(text)
         for name, text in spec['texts'].items():
             getattr(self, name).setText(text)
-        touch = self.widgetLayout is WidgetLayout.TOUCH
-        for label in (self.lblElapsedTime, self.lblVolume):
-            label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter if touch else Qt.AlignHCenter | Qt.AlignTop)
-        for spin in (self.spinboxGain, self.spinboxFadeTime):
-            spin.setAlignment(Qt.AlignRight if touch else Qt.AlignLeft)
-        # Con la policy Fixed predefinita i preset non riempiono la loro cella.
-        preset_height = QSizePolicy.Preferred if touch else QSizePolicy.Fixed
-        for btn in (self.btnFadePreset1, self.btnFadePreset2, self.btnFadePreset3):
-            policy = btn.sizePolicy()
-            policy.setVerticalPolicy(preset_height)
-            btn.setSizePolicy(policy)
 
         self.setMaximumSize(*spec.get('max', (QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)))
         layout.set_sizes(spec['ref'], spec['min'])
@@ -575,10 +571,8 @@ class Mp3Widget(QWidget):
         La label del tempo trascorso conta solo se è nel layout corrente."""
         elapsed = seconds_to_min_sec(self._elapsed_s)
         remaining = seconds_to_min_sec(self._remaining_s)
-        elapsed_label, remaining_label = LAYOUT_SPECS[self.widgetLayout.name].get(
-            'time_labels', ('Elapsed Time: ', 'Remaining Time: '))
-        rows = ((self.lblElapsedTime, f"{elapsed_label}{elapsed}", elapsed),
-                (self.lblRemainingTime, f"{remaining_label}{remaining}", f"-{remaining}"))
+        rows = ((self.lblElapsedTime, f"Elapsed: {elapsed}", elapsed),
+                (self.lblRemainingTime, f"Remaining: {remaining}", f"-{remaining}"))
         fits = all(label.fontMetrics().horizontalAdvance(long_text) <= label.width()
                    for label, long_text, _ in rows if label.parent() is not None)
         for label, long_text, short_text in rows:

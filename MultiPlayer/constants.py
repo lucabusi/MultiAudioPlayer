@@ -7,7 +7,7 @@ Importate dai moduli con `from constants import ...`.
 # Da incrementare ad ogni modifica funzionale. NON è la versione del formato
 # di progetto `.mpp`, che vive in project_manager.CURRENT_VERSION e si muove
 # solo quando cambia lo schema del file salvato.
-APP_VERSION = '4.2.2'
+APP_VERSION = '4.2.4'
 
 # --- Audio ---
 # Backend usato al primo avvio e come fallback quando la preferenza salvata

@@ -863,20 +863,23 @@ def test_tempi_in_forma_breve_quando_non_entrano():
     assert largo == ('Elapsed: 00:05', 'Remaining: 01:05'), largo
 
 
-def test_etichette_brevi_solo_in_touch():
+def test_etichette_brevi_in_tutti_i_layout():
     from mp3widget import WidgetLayout
     w = _nuovo_widget('TOUCH')
     w.show()
     _pump(400)  # il caricamento asincrono riscrive il tempo rimanente
     w._set_time_labels(5, 65)
-    _ridimensiona(w, 4000, 152)
-    touch = (w.lblElapsedTime.text(), w.lblRemainingTime.text())
+    testi = {}
+    for layout in WidgetLayout:
+        w.set_layout(layout)
+        _ridimensiona(w, 4000, 460)
+        testi[layout.name] = w.lblRemainingTime.text()
     w.set_layout(WidgetLayout.STANDARD)
-    _ridimensiona(w, 4000, 152)
-    standard = (w.lblElapsedTime.text(), w.lblRemainingTime.text())
+    _ridimensiona(w, 4000, 127)
+    trascorso = w.lblElapsedTime.text()
     w.shutdown()
-    assert touch == ('Elapsed: 00:05', 'Remaining: 01:05'), touch
-    assert standard == ('Elapsed Time: 00:05', 'Remaining Time: 01:05'), standard
+    assert all(t == 'Remaining: 01:05' for t in testi.values()), testi
+    assert trascorso == 'Elapsed: 00:05', trascorso
 
 
 def test_touch_pulsante_layout_accanto_a_norm():
@@ -907,65 +910,50 @@ def test_touch_tempi_leggibili_alla_larghezza_minima():
     assert all(testo <= spazio for _, testo, spazio in misure), misure
 
 
-def test_touch_preset_fade_alti_come_norm():
+def test_preset_fade_alti_come_norm():
     from fluid_layout import LAYOUT_SPECS
-    spec = LAYOUT_SPECS['TOUCH']
+    from mp3widget import WidgetLayout
     w = _nuovo_widget('TOUCH')
     w.show()
     misure = []
-    for taglia in (spec['min'], spec['ref']):
-        _ridimensiona(w, *taglia)
-        misure.append((taglia, w.btnNorm.height(),
-                       [b.height() for b in (w.btnFadePreset1, w.btnFadePreset2, w.btnFadePreset3)]))
+    for nome in ('TOUCH', 'STANDARD'):  # gli unici layout con i preset
+        spec = LAYOUT_SPECS[nome]
+        w.set_layout(WidgetLayout[nome])
+        for taglia in (spec['min'], spec['ref']):
+            _ridimensiona(w, *taglia)
+            misure.append((nome, taglia, w.btnNorm.height(),
+                           [b.height() for b in (w.btnFadePreset1, w.btnFadePreset2, w.btnFadePreset3)]))
     w.shutdown()
-    for taglia, norm, preset in misure:
-        assert all(abs(h - norm) <= 1 for h in preset), (taglia, norm, preset)
+    for nome, taglia, norm, preset in misure:
+        assert all(abs(h - norm) <= 1 for h in preset), (nome, taglia, norm, preset)
 
 
-def test_touch_allineamento_label_e_spinbox():
-    from PySide6.QtCore import Qt
-    w = _nuovo_widget('TOUCH')
-    label = {n: getattr(w, n).alignment() for n in
-             ('filename_label', 'lblElapsedTime', 'lblRemainingTime', 'lblVolume')}
-    spin = {n: getattr(w, n).alignment() & Qt.AlignHorizontal_Mask for n in
-            ('spinboxGain', 'spinboxFadeTime')}
-    w.shutdown()
-    assert all(a == Qt.AlignLeft | Qt.AlignVCenter for a in label.values()), label
-    assert all(a == Qt.AlignRight for a in spin.values()), spin
-
-
-def test_allineamento_touch_non_resta_sugli_altri_layout():
+def test_allineamenti_uguali_in_tutti_i_layout():
     from PySide6.QtCore import Qt
     from mp3widget import WidgetLayout
     w = _nuovo_widget('TOUCH')
-    w.set_layout(WidgetLayout.STANDARD)
-    esito = (w.lblElapsedTime.alignment(), w.lblVolume.alignment(),
-             w.spinboxGain.alignment() & Qt.AlignHorizontal_Mask,
-             w.spinboxFadeTime.alignment() & Qt.AlignHorizontal_Mask)
+    esiti = {}
+    for layout in WidgetLayout:
+        w.set_layout(layout)
+        esiti[layout.name] = (
+            w.filename_label.alignment(), w.lblElapsedTime.alignment(), w.lblRemainingTime.alignment(),
+            w.lblVolume.alignment(),
+            w.spinboxGain.alignment() & Qt.AlignHorizontal_Mask,
+            w.spinboxFadeTime.alignment() & Qt.AlignHorizontal_Mask)
     w.shutdown()
-    centrato = Qt.AlignHCenter | Qt.AlignTop
-    assert esito == (centrato, centrato, Qt.AlignLeft, Qt.AlignLeft), esito
-
-
-def test_preset_fade_invariati_fuori_da_touch():
-    from mp3widget import WidgetLayout
-    w = _nuovo_widget('TOUCH')
-    w.set_layout(WidgetLayout.STANDARD)
-    w.show()
-    _ridimensiona(w, 818, 127)
-    preset, naturale = w.btnFadePreset1.height(), w.btnFadePreset1.sizeHint().height()
-    w.shutdown()
-    assert preset == naturale, (preset, naturale)
+    a_sinistra = Qt.AlignLeft | Qt.AlignVCenter
+    atteso = (a_sinistra, a_sinistra, a_sinistra, Qt.AlignCenter, Qt.AlignHCenter, Qt.AlignRight)
+    assert all(esito == atteso for esito in esiti.values()), esiti
 
 
 def test_tempi_sempre_nella_stessa_forma():
-    # Una larghezza intermedia faceva convivere "Elapsed Time: 00:00" e "-02:28".
+    # Una larghezza intermedia faceva convivere "Elapsed: 00:00" e "-02:28".
     w = _nuovo_widget('DENSE_A')
     w.show()
     forme = []
     for larghezza in range(700, 4000, 20):
         _ridimensiona(w, larghezza, 46)
-        forme.append(('Time' in w.lblElapsedTime.text(), 'Time' in w.lblRemainingTime.text()))
+        forme.append(('Elapsed' in w.lblElapsedTime.text(), 'Remaining' in w.lblRemainingTime.text()))
     w.shutdown()
     assert all(a == b for a, b in forme), forme
 

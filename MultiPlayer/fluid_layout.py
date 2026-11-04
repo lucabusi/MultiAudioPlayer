@@ -19,7 +19,6 @@ MAX_FONT_SCALE = 2.5
 #      tra min e ref si passa linearmente da qui a items, così a cedere spazio
 #      sono i controlli scelti e non tutti in proporzione.
 # texts: testi diversi da quelli predefiniti ('' = solo icona).
-# time_labels: facoltativo, (prefisso trascorso, prefisso rimanente) della forma lunga.
 LAYOUT_SPECS = {
     'COMPACT': {
         'ref': (626, 99), 'min': (500, 70), 'slider_vertical': False, 'texts': {},
@@ -37,7 +36,6 @@ LAYOUT_SPECS = {
     },
     'TOUCH': {
         'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True, 'texts': {},
-        'time_labels': ('Elapsed: ', 'Remaining: '),
         'narrow': {
             'btnRemove': (5, 52), 'btnNorm': (5, 52), 'btnChangeLayout': (60, 30),
             'filename_label': (60, 98), 'lblElapsedTime': (93, 29), 'lblRemainingTime': (125, 33),
