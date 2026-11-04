@@ -1,0 +1,217 @@
+"""Layout proporzionale dei controlli di Mp3Widget.
+
+Ogni disposizione è una tabella di rettangoli in coordinate di riferimento:
+la griglia esterna decide la dimensione della cella e i controlli la seguono,
+senza che i loro testi possano imporre una larghezza minima.
+"""
+from PySide6.QtCore import QRect, QSize
+from PySide6.QtWidgets import QLayout
+
+QWIDGETSIZE_MAX = 16777215
+MIN_FONT_PT = 7.0
+MAX_FONT_SCALE = 2.5
+
+# ref: dimensione a cui i rettangoli valgono 1:1 (font base).
+# min: sotto questa dimensione interviene lo scroll della griglia esterna:
+#      è la soglia a cui i testi, a MIN_FONT_PT, entrano ancora nei controlli.
+# max: facoltativo, limite del widget: DENSE_A resta una riga, STRIP_A una striscia.
+# narrow: facoltativo, {controllo: (x, larghezza)} in pixel alla larghezza min:
+#      tra min e ref si passa linearmente da qui a items, così a cedere spazio
+#      sono i controlli scelti e non tutti in proporzione.
+# texts: testi diversi da quelli predefiniti ('' = solo icona).
+LAYOUT_SPECS = {
+    'COMPACT': {
+        'ref': (626, 99), 'min': (500, 70), 'slider_vertical': False, 'texts': {},
+        'items': {
+            'btnChangeLayout':  (10, 10, 28, 25),
+            'btnPlay':          (44, 10, 80, 25),
+            'btnStop':          (130, 10, 48, 25),
+            'filename_label':   (184, 10, 114, 25),
+            'lblRemainingTime': (304, 10, 136, 25),
+            'lblVolume':        (446, 10, 28, 25),
+            'slidVolume':       (480, 10, 65, 25),
+            'btnRemove':        (551, 10, 65, 25),
+            'progress_bar':     (10, 41, 606, 48),
+        },
+    },
+    'TOUCH': {
+        'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True, 'texts': {},
+        'narrow': {
+            'btnRemove': (5, 52), 'btnNorm': (5, 52), 'btnChangeLayout': (60, 30),
+            'filename_label': (93, 41), 'lblElapsedTime': (60, 35), 'lblRemainingTime': (98, 36),
+            'btnPlay': (137, 64), 'btnFadeIn': (204, 64),
+            'spinboxFadeTime': (271, 44), 'fade_preset_widget': (271, 44),
+            'btnFadeOut': (318, 64), 'btnStop': (385, 64),
+            'lblVolume': (456, 33), 'spinboxGain': (452, 41),
+            'progress_bar': (5, 488), 'slidVolume': (496, 15),
+        },
+        'items': {
+            'btnRemove':          (10, 10, 67, 36),
+            'btnNorm':            (10, 52, 67, 36),
+            'btnChangeLayout':    (83, 10, 66, 36),
+            'filename_label':     (155, 10, 258, 36),
+            'lblElapsedTime':     (83, 52, 162, 36),
+            'lblRemainingTime':   (251, 52, 162, 36),
+            'btnPlay':            (419, 10, 84, 78),
+            'btnFadeIn':          (509, 10, 84, 78),
+            'spinboxFadeTime':    (599, 10, 80, 36),
+            'fade_preset_widget': (599, 52, 80, 36),
+            'btnFadeOut':         (685, 10, 84, 78),
+            'btnStop':            (775, 10, 84, 78),
+            'lblVolume':          (870, 10, 43, 36),
+            'spinboxGain':        (865, 52, 52, 36),
+            'progress_bar':       (10, 94, 907, 48),
+            'slidVolume':         (923, 10, 28, 132),
+        },
+    },
+    'STANDARD': {
+        'ref': (818, 127), 'min': (510, 85), 'slider_vertical': False, 'texts': {},
+        'items': {
+            'btnChangeLayout':    (10, 10, 105, 21),
+            'filename_label':     (121, 10, 591, 21),
+            'btnRemove':          (718, 10, 90, 21),
+            'btnPlay':            (10, 37, 105, 26),
+            'btnStop':            (121, 37, 65, 26),
+            'btnFadeIn':          (192, 37, 75, 26),
+            'spinboxFadeTime':    (273, 37, 75, 26),
+            'fade_preset_widget': (354, 37, 58, 26),
+            'btnFadeOut':         (418, 37, 92, 26),
+            'btnNorm':            (516, 37, 72, 26),
+            'spinboxGain':        (594, 37, 78, 26),
+            'lblVolume':          (678, 37, 34, 26),
+            'slidVolume':         (718, 37, 90, 26),
+            'lblElapsedTime':     (10, 69, 105, 48),
+            'progress_bar':       (121, 69, 591, 48),
+            'lblRemainingTime':   (718, 69, 90, 48),
+        },
+    },
+    'COMPACT_V': {
+        'ref': (336, 113), 'min': (270, 96), 'slider_vertical': True, 'texts': {},
+        'items': {
+            'btnRemove':        (10, 10, 150, 21),
+            'btnChangeLayout':  (166, 10, 134, 21),
+            'filename_label':   (10, 37, 290, 18),
+            'btnPlay':          (10, 61, 82, 18),
+            'btnFadeIn':        (98, 61, 64, 18),
+            'btnFadeOut':       (168, 61, 76, 18),
+            'btnStop':          (250, 61, 50, 18),
+            'lblRemainingTime': (10, 85, 290, 18),
+            'slidVolume':       (306, 10, 20, 93),
+        },
+    },
+    'DENSE_A': {
+        'ref': (982, 46), 'min': (680, 40), 'max': (QWIDGETSIZE_MAX, 46), 'slider_vertical': False,
+        'texts': {'btnPlay': '', 'btnStop': '', 'btnFadeIn': '', 'btnFadeOut': ''},
+        'items': {
+            'btnPlay':          (10, 10, 28, 26),
+            'btnStop':          (44, 10, 28, 26),
+            'filename_label':   (78, 10, 109, 26),
+            'progress_bar':     (193, 10, 150, 26),
+            'lblElapsedTime':   (349, 10, 100, 26),
+            'lblRemainingTime': (455, 10, 110, 26),
+            'spinboxFadeTime':  (571, 10, 80, 26),
+            'spinboxGain':      (657, 10, 85, 26),
+            'slidVolume':       (748, 10, 84, 26),
+            'lblVolume':        (838, 10, 30, 26),
+            'btnFadeIn':        (874, 10, 28, 26),
+            'btnFadeOut':       (908, 10, 28, 26),
+            'btnChangeLayout':  (942, 10, 30, 26),
+        },
+    },
+    'STRIP_A': {
+        'ref': (157, 460), 'min': (130, 300), 'max': (176, QWIDGETSIZE_MAX), 'slider_vertical': True,
+        'texts': {'btnPlay': '', 'btnStop': '', 'btnFadeIn': 'IN', 'btnFadeOut': 'OUT'},
+        'items': {
+            'btnMore':          (10, 10, 137, 24),
+            'filename_label':   (10, 40, 137, 24),
+            'lblRemainingTime': (10, 70, 137, 22),
+            'progress_bar':     (10, 98, 137, 8),
+            'slidVolume':       (60, 112, 36, 222),
+            'lblVolume':        (10, 340, 66, 26),
+            'spinboxGain':      (81, 340, 66, 26),
+            'btnFadeIn':        (10, 372, 66, 36),
+            'btnFadeOut':       (81, 372, 66, 36),
+            'btnPlay':          (10, 414, 66, 36),
+            'btnStop':          (81, 414, 66, 36),
+        },
+    },
+}
+
+
+class FluidLayout(QLayout):
+    """Piazza ogni widget in un rettangolo scalato sulla dimensione reale.
+
+    `on_geometry` viene chiamata dopo ogni piazzamento: a quel punto le
+    geometrie dei figli sono definitive anche se il widget non è ancora visibile.
+    """
+
+    def __init__(self, on_geometry=None):
+        super().__init__()
+        self.setContentsMargins(0, 0, 0, 0)
+        self._items = []
+        self._rects = {}
+        self._narrow = {}
+        self._ref = (1, 1)
+        self._min = (0, 0)
+        self._on_geometry = on_geometry
+
+    def set_sizes(self, ref: tuple, minimum: tuple) -> None:
+        self._ref = ref
+        self._min = minimum
+        self.invalidate()
+
+    def place(self, widget, rect: tuple, narrow: tuple = None) -> None:
+        self.addWidget(widget)
+        self._rects[widget] = rect
+        self._narrow[widget] = narrow
+
+    def placement(self, widget):
+        """Rettangolo di riferimento del widget, None se non è nel layout."""
+        return self._rects.get(widget)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        if not 0 <= index < len(self._items):
+            return None
+        item = self._items.pop(index)
+        self._rects.pop(item.widget(), None)
+        self._narrow.pop(item.widget(), None)
+        return item
+
+    def sizeHint(self):
+        return QSize(*self._ref)
+
+    def minimumSize(self):
+        return QSize(*self._min)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        sx = rect.width() / self._ref[0]
+        sy = rect.height() / self._ref[1]
+        for item in self._items:
+            widget = item.widget()
+            x, y, w, h = self._rects[widget]
+            # Si arrotondano i bordi, non le dimensioni: la somma di larghezze
+            # arrotondate farebbe sovrapporre o distanziare i vicini.
+            left, right = self._edges(widget, x, x + w, rect.width(), sx)
+            top = round(y * sy)
+            widget.setGeometry(QRect(rect.x() + left, rect.y() + top,
+                                     right - left, round((y + h) * sy) - top))
+        if self._on_geometry is not None:
+            self._on_geometry()
+
+    def _edges(self, widget, left, right, width, sx):
+        narrow = self._narrow[widget]
+        if narrow is None or width >= self._ref[0]:
+            return round(left * sx), round(right * sx)
+        t = max(0, (width - self._min[0]) / (self._ref[0] - self._min[0]))
+        x, w = narrow
+        return round(x + t * (left - x)), round(x + w + t * (right - x - w))
