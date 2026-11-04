@@ -860,7 +860,102 @@ def test_tempi_in_forma_breve_quando_non_entrano():
     largo = (w.lblElapsedTime.text(), w.lblRemainingTime.text())
     w.shutdown()
     assert stretto == ('00:05', '-01:05'), stretto
-    assert largo == ('Elapsed Time: 00:05', 'Remaining Time: 01:05'), largo
+    assert largo == ('Elapsed: 00:05', 'Remaining: 01:05'), largo
+
+
+def test_etichette_brevi_solo_in_touch():
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('TOUCH')
+    w.show()
+    _pump(400)  # il caricamento asincrono riscrive il tempo rimanente
+    w._set_time_labels(5, 65)
+    _ridimensiona(w, 4000, 152)
+    touch = (w.lblElapsedTime.text(), w.lblRemainingTime.text())
+    w.set_layout(WidgetLayout.STANDARD)
+    _ridimensiona(w, 4000, 152)
+    standard = (w.lblElapsedTime.text(), w.lblRemainingTime.text())
+    w.shutdown()
+    assert touch == ('Elapsed: 00:05', 'Remaining: 01:05'), touch
+    assert standard == ('Elapsed Time: 00:05', 'Remaining Time: 01:05'), standard
+
+
+def test_touch_pulsante_layout_accanto_a_norm():
+    from fluid_layout import LAYOUT_SPECS
+    spec = LAYOUT_SPECS['TOUCH']
+    w = _nuovo_widget('TOUCH')
+    w.show()
+    misure = []
+    for taglia in (spec['min'], spec['ref']):
+        _ridimensiona(w, *taglia)
+        misure.append((taglia, w.btnNorm.geometry().getRect(), w.btnChangeLayout.geometry().getRect()))
+    w.shutdown()
+    for taglia, norm, layout in misure:
+        assert layout[1] == norm[1] and layout[3] == norm[3], (taglia, norm, layout)
+        assert 0 <= layout[0] - (norm[0] + norm[2]) <= 8, (taglia, norm, layout)
+
+
+def test_touch_tempi_leggibili_alla_larghezza_minima():
+    # Il pulsante layout in seconda riga toglie spazio alle label: i tempi,
+    # anche oltre i 100 minuti, devono entrare comunque.
+    from fluid_layout import LAYOUT_SPECS
+    w = _nuovo_widget('TOUCH')
+    w.show()
+    _ridimensiona(w, *LAYOUT_SPECS['TOUCH']['min'])
+    misure = [(testo, label.fontMetrics().horizontalAdvance(testo), label.width())
+              for label, testo in ((w.lblElapsedTime, '100:05'), (w.lblRemainingTime, '-100:05'))]
+    w.shutdown()
+    assert all(testo <= spazio for _, testo, spazio in misure), misure
+
+
+def test_touch_preset_fade_alti_come_norm():
+    from fluid_layout import LAYOUT_SPECS
+    spec = LAYOUT_SPECS['TOUCH']
+    w = _nuovo_widget('TOUCH')
+    w.show()
+    misure = []
+    for taglia in (spec['min'], spec['ref']):
+        _ridimensiona(w, *taglia)
+        misure.append((taglia, w.btnNorm.height(),
+                       [b.height() for b in (w.btnFadePreset1, w.btnFadePreset2, w.btnFadePreset3)]))
+    w.shutdown()
+    for taglia, norm, preset in misure:
+        assert all(abs(h - norm) <= 1 for h in preset), (taglia, norm, preset)
+
+
+def test_touch_allineamento_label_e_spinbox():
+    from PySide6.QtCore import Qt
+    w = _nuovo_widget('TOUCH')
+    label = {n: getattr(w, n).alignment() for n in
+             ('filename_label', 'lblElapsedTime', 'lblRemainingTime', 'lblVolume')}
+    spin = {n: getattr(w, n).alignment() & Qt.AlignHorizontal_Mask for n in
+            ('spinboxGain', 'spinboxFadeTime')}
+    w.shutdown()
+    assert all(a == Qt.AlignLeft | Qt.AlignVCenter for a in label.values()), label
+    assert all(a == Qt.AlignRight for a in spin.values()), spin
+
+
+def test_allineamento_touch_non_resta_sugli_altri_layout():
+    from PySide6.QtCore import Qt
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('TOUCH')
+    w.set_layout(WidgetLayout.STANDARD)
+    esito = (w.lblElapsedTime.alignment(), w.lblVolume.alignment(),
+             w.spinboxGain.alignment() & Qt.AlignHorizontal_Mask,
+             w.spinboxFadeTime.alignment() & Qt.AlignHorizontal_Mask)
+    w.shutdown()
+    centrato = Qt.AlignHCenter | Qt.AlignTop
+    assert esito == (centrato, centrato, Qt.AlignLeft, Qt.AlignLeft), esito
+
+
+def test_preset_fade_invariati_fuori_da_touch():
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('TOUCH')
+    w.set_layout(WidgetLayout.STANDARD)
+    w.show()
+    _ridimensiona(w, 818, 127)
+    preset, naturale = w.btnFadePreset1.height(), w.btnFadePreset1.sizeHint().height()
+    w.shutdown()
+    assert preset == naturale, (preset, naturale)
 
 
 def test_tempi_sempre_nella_stessa_forma():

@@ -19,6 +19,7 @@ MAX_FONT_SCALE = 2.5
 #      tra min e ref si passa linearmente da qui a items, così a cedere spazio
 #      sono i controlli scelti e non tutti in proporzione.
 # texts: testi diversi da quelli predefiniti ('' = solo icona).
+# time_labels: facoltativo, (prefisso trascorso, prefisso rimanente) della forma lunga.
 LAYOUT_SPECS = {
     'COMPACT': {
         'ref': (626, 99), 'min': (500, 70), 'slider_vertical': False, 'texts': {},
@@ -36,22 +37,23 @@ LAYOUT_SPECS = {
     },
     'TOUCH': {
         'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True, 'texts': {},
+        'time_labels': ('Elapsed: ', 'Remaining: '),
         'narrow': {
             'btnRemove': (5, 52), 'btnNorm': (5, 52), 'btnChangeLayout': (60, 30),
-            'filename_label': (93, 41), 'lblElapsedTime': (60, 35), 'lblRemainingTime': (98, 36),
-            'btnPlay': (137, 64), 'btnFadeIn': (204, 64),
-            'spinboxFadeTime': (271, 44), 'fade_preset_widget': (271, 44),
-            'btnFadeOut': (318, 64), 'btnStop': (385, 64),
+            'filename_label': (60, 98), 'lblElapsedTime': (93, 29), 'lblRemainingTime': (125, 33),
+            'btnPlay': (161, 58), 'btnFadeIn': (222, 58),
+            'spinboxFadeTime': (283, 44), 'fade_preset_widget': (283, 44),
+            'btnFadeOut': (330, 58), 'btnStop': (391, 58),
             'lblVolume': (456, 33), 'spinboxGain': (452, 41),
             'progress_bar': (5, 488), 'slidVolume': (496, 15),
         },
         'items': {
             'btnRemove':          (10, 10, 67, 36),
             'btnNorm':            (10, 52, 67, 36),
-            'btnChangeLayout':    (83, 10, 66, 36),
-            'filename_label':     (155, 10, 258, 36),
-            'lblElapsedTime':     (83, 52, 162, 36),
-            'lblRemainingTime':   (251, 52, 162, 36),
+            'btnChangeLayout':    (83, 52, 66, 36),
+            'filename_label':     (83, 10, 330, 36),
+            'lblElapsedTime':     (155, 52, 118, 36),
+            'lblRemainingTime':   (279, 52, 134, 36),
             'btnPlay':            (419, 10, 84, 78),
             'btnFadeIn':          (509, 10, 84, 78),
             'spinboxFadeTime':    (599, 10, 80, 36),
