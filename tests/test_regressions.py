@@ -338,7 +338,8 @@ def test_tempo_rimanente_mai_negativo():
     testo = w.lblRemainingTime.text()
     w.shutdown()
     assert rimanenti >= 0, f"remaining_seconds negativo: {rimanenti}"
-    assert '-' not in testo, f"label con tempo negativo: {testo!r}"
+    # Il '-' iniziale della forma breve è il segno del tempo rimanente.
+    assert testo in ('Remaining: 00:00', '-00:00'), f"label con tempo negativo: {testo!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -594,8 +595,9 @@ _NUOVI_LAYOUT = {
     # layout: (widget attesi nel grid, widget che NON devono esserci)
     'DENSE_A': (_COMUNI + ['lblElapsedTime', 'lblRemainingTime', 'spinboxFadeTime',
                            'btnChangeLayout'], ['btnRemove']),
-    'STRIP_A': (_COMUNI + ['btnMore', 'lblRemainingTime'],
-                ['btnChangeLayout', 'btnRemove', 'btnNorm']),
+    'STRIP_A': ([n for n in _COMUNI if n != 'lblVolume']
+                + ['btnMore', 'lblElapsedTime', 'lblRemainingTime'],
+                ['btnChangeLayout', 'btnRemove', 'btnNorm', 'lblVolume']),
 }
 _VECCHI_LAYOUT = ['COMPACT', 'COMPACT_V', 'TOUCH', 'STANDARD']
 _ATTRS_POS = sorted({a for e, n in _NUOVI_LAYOUT.values() for a in e + n}
@@ -640,12 +642,12 @@ def test_geometrie_specifiche_dei_nuovi_layout():
     from PySide6.QtCore import Qt
     w = _nuovo_widget('DENSE_A')
     w.show(); _pump(50)
-    assert w.btnPlay.text() == ''   # solo icona del tema
+    assert w.btnPlay.text() == ''   # solo simbolo
     assert w.maximumHeight() == 46
     assert w.progress_bar.receivers("2clicked(double)") >= 1   # seek ancora collegato
     w.set_layout(type(w.widgetLayout).STRIP_A); _pump(50)
     assert w.slidVolume.orientation() == Qt.Vertical
-    assert w.btnFadeIn.text() == 'IN' and w.btnPlay.text() == ''
+    assert w.btnFadeIn.text() == '' and w.btnPlay.text() == ''
     assert w.maximumWidth() == 176 and w.maximumHeight() == 16777215
     w.shutdown()
 
@@ -665,7 +667,7 @@ def test_nuovi_layout_non_lasciano_residui_sui_vecchi():
              w.maximumWidth(), w.lblRemainingTime.styleSheet(), w.filename_label.wordWrap(),
              w.slidVolume.minimumHeight())
     w.shutdown()
-    assert esito == ('Play/Pause', 16777215, 16777215, 16777215, '', False, 0), esito
+    assert esito == ('', 16777215, 16777215, 16777215, '', False, 0), esito
 
 
 def test_nuovi_layout_salvati_e_ricaricati_nel_progetto():
@@ -781,7 +783,11 @@ def test_rettangoli_proporzionali_alla_cella():
         g = w.widget_file_frame_layout
         sx = g.geometry().width() / spec['ref'][0]
         sy = g.geometry().height() / spec['ref'][1]
+        fisso, elastici = spec.get('band', (None, ()))
+        fascia = {getattr(w, n) for n in (fisso, *elastici) if n}
         for c in _piazzati(w):
+            if c in fascia:
+                continue  # in fascia per scelta: coperti dai test di STRIP_A
             x, y, cw, ch = g.placement(c)
             attesi = (x * sx, y * sy, cw * sx, ch * sy)
             reali = c.geometry().getRect()
@@ -878,7 +884,9 @@ def test_etichette_brevi_in_tutti_i_layout():
     _ridimensiona(w, 4000, 127)
     trascorso = w.lblElapsedTime.text()
     w.shutdown()
-    assert all(t == 'Remaining: 01:05' for t in testi.values()), testi
+    # STRIP_A per scelta mostra solo i tempi.
+    attesi = {n: '-01:05' if n == 'STRIP_A' else 'Remaining: 01:05' for n in testi}
+    assert testi == attesi, testi
     assert trascorso == 'Elapsed: 00:05', trascorso
 
 
@@ -1163,6 +1171,93 @@ def test_riga_compatta_rimossa_torna_drop_target():
     assert stretch == 1, stretch
 
 
+# ---------------------------------------------------------------------------
+# Drag&drop oltre la seconda colonna: la griglia non offriva celle dopo
+# l'ultima colonna occupata, le colonne vuote erano strisce da 60px e lo
+# spazio tra le celle rifiutava il drop.
+
+class _DragFinto:
+    """Evento di drag minimo: sorgente e posizione nel container."""
+
+    def __init__(self, source, pos=(0, 0)):
+        from PySide6.QtCore import QPointF
+        self._source = source
+        self._pos = QPointF(*pos)
+        self.accettato = False
+
+    def source(self):
+        return self._source
+
+    def position(self):
+        return self._pos
+
+    def acceptProposedAction(self):
+        self.accettato = True
+
+    def ignore(self):
+        self.accettato = False
+
+
+def test_drag_offre_una_colonna_nuova_comoda():
+    from grid_manager import DRAG_TARGET_SIZE
+    m = _finestra(('TOUCH', (0, 0)), ('TOUCH', (0, 1)))
+    g = m.grid_layout
+    w = m.mp3_widgets[0]
+    m._on_container_drag_enter(_DragFinto(w))
+    _pump(50)
+    cella = g.cellRect(0, 2)
+    larga = cella.width()
+    m._on_container_drop(_DragFinto(w, (cella.center().x(), cella.center().y())))
+    _pump(50)
+    pos = g.getItemPosition(g.indexOf(w))[:2]
+    dopo = g.cellRect(0, 3).width()
+    _chiudi(m)
+    assert larga >= DRAG_TARGET_SIZE, larga
+    assert pos == (0, 2), pos
+    assert dopo <= 0, dopo   # finito il drag le celle extra spariscono
+
+
+def test_drag_annullato_ripristina_la_griglia():
+    m = _finestra(('TOUCH', (0, 0)), ('TOUCH', (0, 1)))
+    g = m.grid_layout
+    prima = [w.geometry() for w in m.mp3_widgets]
+    m._on_container_drag_enter(_DragFinto(m.mp3_widgets[0]))
+    _pump(50)
+    m._on_container_drag_leave()
+    _pump(50)
+    dopo = [w.geometry() for w in m.mp3_widgets]
+    _chiudi(m)
+    assert dopo == prima, (prima, dopo)
+
+
+def test_drop_nello_spazio_tra_le_celle():
+    m = _finestra(('TOUCH', (0, 0)), ('TOUCH', (0, 1)))
+    g = m.grid_layout
+    a, b = g.cellRect(0, 0), g.cellRect(0, 1)
+    gap = ((a.right() + b.left()) // 2, a.center().y())
+    cella = m.grid_manager.get_cell_at_pos(__import__('PySide6.QtCore', fromlist=['QPoint']).QPoint(*gap))
+    _chiudi(m)
+    assert cella in ((0, 0), (0, 1)), cella
+
+
+def test_drag_scorre_la_vista_al_bordo():
+    m = _finestra(('TOUCH', (0, 0)), ('TOUCH', (0, 1)))
+    m.resize(900, 600)
+    _pump(100)
+    area = m.centralWidget()
+    barra = area.horizontalScrollBar()
+    w = m.mp3_widgets[0]
+    m._on_container_drag_enter(_DragFinto(w))
+    _pump(50)
+    bordo = area.viewport().width() - 5 + barra.value()
+    m.container_widget.dragMoveEvent(_DragFinto(w, (bordo, 100)))
+    _pump(50)
+    scorsa = barra.value()
+    m._on_container_drag_leave()
+    _chiudi(m)
+    assert scorsa > 0, scorsa
+
+
 def test_griglia_invariata_senza_widget_limitati():
     m = _finestra(('TOUCH', (0, 0)), ('TOUCH', (0, 1)), ('STANDARD', (1, 0)))
     g = m.grid_layout
@@ -1170,6 +1265,229 @@ def test_griglia_invariata_senza_widget_limitati():
              [g.rowStretch(r) for r in range(2)], g.columnCount())
     _chiudi(m)
     assert esito == ([1, 1], [1, 1], 2), esito
+
+
+# ---------------------------------------------------------------------------
+# Su Linux le icone dei pulsanti non si vedevano: QIcon.fromTheme dipende dal
+# tema del desktop (qui configurato ma non installato), su Windows Qt ne ha
+# uno interno. I simboli vanno disegnati dall'app, uguali ovunque.
+
+_PULSANTI_SIMBOLO = ('btnPlay', 'btnStop', 'btnFadeIn', 'btnFadeOut',
+                     'btnRemove', 'btnNorm', 'btnChangeLayout', 'btnMore')
+
+
+def test_simboli_senza_tema_icone():
+    from PySide6.QtGui import QIcon
+    from mp3widget import WidgetLayout
+    _app()
+    QIcon.setThemeName('tema-inesistente')
+    w = _nuovo_widget('TOUCH')
+    for L in WidgetLayout:
+        w.set_layout(L)
+        for n in _PULSANTI_SIMBOLO:
+            b = getattr(w, n)
+            assert not b.icon().isNull(), f"{L.name}.{n}: icona nulla"
+            assert b.text() == '' or n == 'btnChangeLayout', f"{L.name}.{n}: testo {b.text()!r}"
+            assert b.toolTip(), f"{n}: tooltip mancante"
+    w.shutdown()
+
+
+def test_simboli_scalano_col_pulsante():
+    from fluid_layout import LAYOUT_SPECS
+    w = _nuovo_widget('TOUCH')
+    w.resize(*LAYOUT_SPECS['TOUCH']['ref'])
+    w.show(); _pump(50)
+    for n in _PULSANTI_SIMBOLO:
+        b = getattr(w, n)
+        if not b.isVisible():
+            continue
+        lato = min(b.width(), b.height())
+        assert b.iconSize().width() >= lato // 2, f"{n}: icona {b.iconSize().width()} su lato {lato}"
+    w.shutdown()
+
+
+def test_strip_a_nome_brano_verticale():
+    from fluid_layout import LAYOUT_SPECS
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('STRIP_A', 'pink_panther.mp3')
+    w.set_filename_text('un nome di brano molto lungo che non entra.mp3')
+    w.resize(*LAYOUT_SPECS['STRIP_A']['ref'])
+    w.show(); _pump(50)
+    lbl = w.filename_label
+    from PySide6.QtCore import QRect, Qt
+    a_capo = lbl.fontMetrics().boundingRect(QRect(0, 0, lbl.height(), 10000),
+                                             Qt.TextWordWrap, lbl.text())
+    verticale = (lbl.vertical, lbl.height() > lbl.width(), a_capo.height() <= lbl.width())
+    w.set_layout(WidgetLayout.TOUCH); _pump(50)
+    orizzontale = lbl.vertical
+    w.shutdown()
+    assert verticale == (True, True, True), verticale
+    assert orizzontale is False
+
+
+def _strip_a_ref():
+    from fluid_layout import LAYOUT_SPECS
+    w = _nuovo_widget('STRIP_A')
+    w.resize(*LAYOUT_SPECS['STRIP_A']['ref'])
+    w.show(); _pump(50)
+    return w
+
+
+def test_strip_a_comandi_in_una_colonna():
+    w = _strip_a_ref()
+    nomi = ('spinboxGain', 'btnPlay', 'btnFadeIn', 'btnFadeOut', 'btnStop')
+    geo = {n: getattr(w, n).geometry() for n in nomi}
+    sopra = max(getattr(w, n).geometry().bottom()
+                for n in ('filename_label', 'progress_bar', 'slidVolume'))
+    w.shutdown()
+    colonne = {(g.x(), g.width()) for g in geo.values()}
+    assert len(colonne) == 1, geo
+    righe = sorted(g.y() for g in geo.values())
+    assert len(set(righe)) == len(righe), geo   # uno sotto l'altro
+    assert min(righe) > sopra, (righe, sopra)   # sotto a nome, waveform e volume
+    ordine = sorted(nomi[1:], key=lambda n: geo[n].y())
+    assert ordine == ['btnPlay', 'btnFadeIn', 'btnFadeOut', 'btnStop'], ordine
+
+
+def test_strip_a_larghezza_minima_ridotta():
+    # Richiesta: 70% della larghezza minima precedente del widget (132px,
+    # bordo del frame compreso).
+    w = _nuovo_widget('STRIP_A')
+    minima = w.minimumSizeHint().width()
+    w.shutdown()
+    assert minima <= round(132 * 0.7), minima
+
+
+def test_strip_a_tempi_solo_numeri_elapsed_sopra():
+    w = _strip_a_ref()
+    el, rem = w.lblElapsedTime, w.lblRemainingTime
+    esito = (el.text(), rem.text().startswith('-'), ':' in rem.text(),
+             'Remaining' in rem.text(), el.geometry().bottom() < rem.geometry().top(),
+             el.isVisible())
+    w.shutdown()
+    assert esito == ('00:00', True, True, False, True, True), esito
+
+
+def test_strip_a_waveform_verticale_sottile():
+    from PySide6.QtCore import QPointF, Qt, QEvent
+    from PySide6.QtGui import QMouseEvent
+    w = _strip_a_ref()
+    pb = w.progress_bar
+    g, nome, slid = pb.geometry(), w.filename_label.geometry(), w.slidVolume.geometry()
+    frazioni = []
+    pb.clicked.connect(frazioni.append)
+    for y in (pb.height() - 2, 2):   # in basso = inizio, in alto = fine
+        pb.mousePressEvent(QMouseEvent(QEvent.MouseButtonPress, QPointF(pb.width() / 2, y),
+                                       QPointF(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    w.shutdown()
+    assert pb.vertical
+    assert g.width() <= 10 and g.height() > 20 * g.width(), g
+    assert nome.right() < g.left() and g.right() < slid.left(), (nome, g, slid)
+    assert frazioni[0] < 0.05 and frazioni[1] > 0.95, frazioni
+
+
+def test_riga_lasciata_dalle_strip_non_ruba_altezza():
+    # Le strip spostate tutte in riga 0 occupavano metà finestra: la riga 1,
+    # rimasta vuota, conservava lo stretch alto delle strip.
+    m = _finestra(('STRIP_A', (0, 0)), ('STRIP_A', (1, 0)))
+    w = m.mp3_widgets[1]
+    m.grid_layout.removeWidget(w)
+    m.grid_layout.addWidget(w, 0, 1)
+    m.grid_manager.update_column_stretches()
+    _pump(100)
+    alto = m.centralWidget().viewport().height()
+    altezze = [x.height() for x in m.mp3_widgets]
+    _chiudi(m)
+    assert all(h > alto * 0.75 for h in altezze), (altezze, alto)
+
+
+def _riempimento(lbl):
+    """(entra, riempimento): il testo sta nella label e quanto ne occupa,
+    nella direzione più sfruttata."""
+    from PySide6.QtCore import QRect, Qt
+    fm = lbl.fontMetrics()
+    r = lbl.contentsRect()
+    lungo, spesso = (r.height(), r.width()) if getattr(lbl, 'vertical', False) else (r.width(), r.height())
+    br = fm.boundingRect(QRect(0, 0, lungo, 10000), Qt.TextWordWrap, lbl.text())
+    if not getattr(lbl, 'vertical', False):
+        br.setWidth(fm.horizontalAdvance(lbl.text()))
+    entra = br.width() <= lungo and br.height() <= spesso
+    return entra, max(br.width() / lungo, br.height() / spesso)
+
+
+def test_testi_label_riempiono_lo_spazio():
+    from fluid_layout import LAYOUT_SPECS
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('TOUCH')
+    w.set_filename_text('pink_panther.mp3')
+    w.show(); _pump(300)
+    errori = []
+    for L in WidgetLayout:
+        w.set_layout(L)
+        ref = LAYOUT_SPECS[L.name]['ref']
+        for taglia in (ref, (ref[0] * 3 // 2, ref[1] * 3 // 2)):
+            _ridimensiona(w, *taglia)
+            for n in ('filename_label', 'lblElapsedTime', 'lblRemainingTime', 'lblVolume'):
+                lbl = getattr(w, n)
+                if lbl.parent() is None:
+                    continue
+                entra, pieno = _riempimento(lbl)
+                # Sotto il font comune non si scende: lì il testo può sforare
+                # come gli altri controlli (es. COMPACT_V, label alte 18px).
+                ingrandita = lbl.font().pointSizeF() > w._font_pt
+                if (ingrandita and not entra) or pieno < 0.6:
+                    errori.append((L.name, taglia, n, lbl.text(), entra, round(pieno, 2)))
+    w.shutdown()
+    assert not errori, errori
+
+
+def _strip_a_a(width, height):
+    w = _nuovo_widget('STRIP_A')
+    w.set_filename_text('01 - Pink Panther Theme (Henry Mancini).mp3')
+    w.show()
+    _ridimensiona(w, width, height)
+    return w
+
+
+def test_strip_a_nome_spesso_quanto_i_tempi():
+    for taglia in ((157, 460), (176, 800)):
+        w = _strip_a_a(*taglia)
+        spessore, tempo = w.filename_label.width(), w.lblElapsedTime.height()
+        w.shutdown()
+        assert abs(spessore - tempo) <= 2, (taglia, spessore, tempo)
+
+
+def test_strip_a_allargando_crescono_solo_volume_e_waveform():
+    misure = []
+    for larghezza in (120, 176):
+        w = _strip_a_a(larghezza, 460)
+        misure.append((w.filename_label.width(), w.progress_bar.width(), w.slidVolume.width()))
+        w.shutdown()
+    (n1, p1, s1), (n2, p2, s2) = misure
+    assert abs(n2 - n1) <= 2, misure
+    assert p2 > p1 and s2 > s1, misure
+
+
+def test_strip_a_font_nome_e_gain():
+    w = _strip_a_a(120, 760)   # strip alta quanto la finestra, come in uso
+    pt = lambda x: x.font().pointSizeF()
+    # Il testo del gain lo disegna il campo interno della spinbox.
+    nome, tempo, gain, comune = (pt(w.filename_label), pt(w.lblElapsedTime),
+                                 pt(w.spinboxGain.lineEdit()), w._font_pt)
+    w.shutdown()
+    assert nome < tempo, (nome, tempo)
+    assert comune < gain <= tempo, (comune, gain, tempo)
+
+
+def test_play_mostra_pausa_mentre_suona():
+    import icons
+    w = _nuovo_widget('TOUCH')
+    assert w.btnPlay.icon().cacheKey() == icons.icon('play').cacheKey()
+    w._on_playback_state_changed('playing')
+    assert w.btnPlay.icon().cacheKey() == icons.icon('pause').cacheKey()
+    w._on_playback_state_changed('paused')
+    assert w.btnPlay.icon().cacheKey() == icons.icon('play').cacheKey()
+    w.shutdown()
 
 
 def main():

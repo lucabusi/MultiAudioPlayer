@@ -5,12 +5,21 @@ QWIDGETSIZE_MAX = 16777215
 # Una riga di channel strip prende quasi tutta l'altezza, ma le righe vuote
 # restano abbastanza alte da fare da drop target.
 TALL_ROW_STRETCH = 30
+# Durante un drag la griglia offre una colonna e una riga vuote in più, larghe
+# abbastanza da essere un bersaglio comodo; a drag finito tornano a sparire.
+DRAG_TARGET_SIZE = 200
 
 
 class GridManager:
     def __init__(self, grid_layout: QGridLayout, initial_cols: int):
         self._layout = grid_layout
         self._initial_cols = initial_cols
+        self._dragging = False
+
+    def set_drag_active(self, active: bool) -> None:
+        """Mostra (o toglie) le celle extra che fanno da bersaglio al drop."""
+        self._dragging = active
+        self.update_column_stretches()
 
     def update_column_stretches(self):
         """Update column AND row stretches.
@@ -51,7 +60,8 @@ class GridManager:
                     tall_rows.add(row)
 
         max_col = max(occupied_cols, default=-1)
-        num_cols = max(max_col + 1, self._initial_cols)
+        num_cols = max(max_col + 1, self._initial_cols) + (1 if self._dragging else 0)
+        empty_width = DRAG_TARGET_SIZE if self._dragging else 60
 
         for c in range(max(num_cols, self._layout.columnCount())):
             if c in occupied_cols:
@@ -61,7 +71,7 @@ class GridManager:
                 self._layout.setColumnStretch(c, 0)
                 # Drop target visibile solo dentro le colonne correnti; oltre
                 # è un residuo di un layout precedente e deve collassare.
-                self._layout.setColumnMinimumWidth(c, 60 if c < num_cols else 0)
+                self._layout.setColumnMinimumWidth(c, empty_width if c < num_cols else 0)
 
         if occupied_cols and not wide_cols:
             self._layout.setColumnStretch(num_cols, 1)
@@ -74,17 +84,31 @@ class GridManager:
                 self._layout.setRowStretch(r, 0)
             else:
                 self._layout.setRowStretch(r, 1)
-        # Almeno una riga vuota sotto l'ultima assorbe lo spazio libero.
+        # Almeno una riga vuota sotto l'ultima assorbe lo spazio libero. Le
+        # righe vuote tornano tutte a 1: una riga lasciata dalle strip
+        # conserverebbe il loro stretch e ruberebbe metà dell'altezza.
         for r in range(max_row + 1, max(self._layout.rowCount(), max_row + 2)):
-            if self._layout.rowStretch(r) == 0:
-                self._layout.setRowStretch(r, 1)
+            self._layout.setRowStretch(r, 1)
+        for r in range(self._layout.rowCount()):
+            self._layout.setRowMinimumHeight(r, 0)
+        if self._dragging and max_row + 1 < MAX_ROWS:
+            self._layout.setRowMinimumHeight(max_row + 1, DRAG_TARGET_SIZE)
 
     def get_cell_at_pos(self, pos) -> tuple[int, int]:
+        """Cella visibile più vicina a pos: lo spazio tra le celle e i margini
+        non sono zone morte per il drop."""
+        best, best_dist = (-1, -1), None
         for r in range(self._layout.rowCount()):
             for c in range(self._layout.columnCount()):
-                if self._layout.cellRect(r, c).contains(pos):
-                    return r, c
-        return -1, -1
+                rect = self._layout.cellRect(r, c)
+                if rect.width() <= 0 or rect.height() <= 0:
+                    continue  # colonna o riga collassata: non è un bersaglio
+                dx = max(rect.left() - pos.x(), 0, pos.x() - rect.right())
+                dy = max(rect.top() - pos.y(), 0, pos.y() - rect.bottom())
+                dist = dx * dx + dy * dy
+                if best_dist is None or dist < best_dist:
+                    best, best_dist = (r, c), dist
+        return best
 
     def find_next_available_cell(self) -> tuple[int, int]:
         num_cols = max(self._layout.columnCount(), self._initial_cols)

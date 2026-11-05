@@ -44,12 +44,16 @@ class _HighlightOverlay(QWidget):
         painter.end()
 
 
+_AUTOSCROLL_MARGIN = 60
+
+
 class _DropContainer(QWidget):
     """QWidget subclass with proper drag/drop override and cell-highlight feedback."""
 
-    def __init__(self, on_drag_enter, on_get_target_rect, on_drop):
+    def __init__(self, on_drag_enter, on_get_target_rect, on_drop, on_drag_leave):
         super().__init__()
         self._on_drag_enter = on_drag_enter
+        self._on_drag_leave = on_drag_leave
         self._on_get_target_rect = on_get_target_rect
         self._on_drop = on_drop
         self.setAcceptDrops(True)
@@ -64,7 +68,12 @@ class _DropContainer(QWidget):
         self._on_drag_enter(event)
 
     def dragMoveEvent(self, event):
-        rect = self._on_get_target_rect(event.position().toPoint())
+        pos = event.position().toPoint()
+        # Vicino al bordo la vista scorre: le celle fuori schermo restano raggiungibili.
+        area = self.parentWidget().parentWidget() if self.parentWidget() else None
+        if isinstance(area, QScrollArea):
+            area.ensureVisible(pos.x(), pos.y(), _AUTOSCROLL_MARGIN, _AUTOSCROLL_MARGIN)
+        rect = self._on_get_target_rect(pos)
         if rect is not None:
             self._overlay.set_highlight(rect)
             event.acceptProposedAction()
@@ -74,6 +83,7 @@ class _DropContainer(QWidget):
 
     def dragLeaveEvent(self, event):
         self._overlay.clear_highlight()
+        self._on_drag_leave()
 
     def dropEvent(self, event):
         self._overlay.clear_highlight()
@@ -157,6 +167,7 @@ class MainApp(QMainWindow):
             self._on_container_drag_enter,
             self._get_drop_target_rect,
             self._on_container_drop,
+            self._on_container_drag_leave,
         )
         self.grid_layout = QGridLayout()
         self.grid_layout.setSpacing(10)
@@ -220,6 +231,10 @@ class MainApp(QMainWindow):
         # Drag interno alla stessa app: la sorgente è il widget stesso.
         if isinstance(event.source(), Mp3Widget):
             event.acceptProposedAction()
+            self.grid_manager.set_drag_active(True)
+
+    def _on_container_drag_leave(self):
+        self.grid_manager.set_drag_active(False)
 
     def _get_drop_target_rect(self, pos):
         """Return the cellRect for the cell under pos, or None if outside the grid."""
@@ -229,6 +244,12 @@ class MainApp(QMainWindow):
         return self.grid_layout.cellRect(r, c)
 
     def _on_container_drop(self, event):
+        try:
+            self._drop_widget(event)
+        finally:
+            self.grid_manager.set_drag_active(False)
+
+    def _drop_widget(self, event):
         source_widget = event.source()
         if not isinstance(source_widget, Mp3Widget):
             event.ignore()
@@ -258,7 +279,6 @@ class MainApp(QMainWindow):
         logger.info(f"Moving {os.path.basename(source_widget.mp3file.file_name)} to ({target_row}, {target_col}).")
         self.grid_layout.removeWidget(source_widget)
         self.grid_layout.addWidget(source_widget, target_row, target_col)
-        self.grid_manager.update_column_stretches()
         event.acceptProposedAction()
 
     def open_files(self):

@@ -14,14 +14,18 @@ MAX_FONT_SCALE = 2.5
 # ref: dimensione a cui i rettangoli valgono 1:1 (font base).
 # min: sotto questa dimensione interviene lo scroll della griglia esterna:
 #      è la soglia a cui i testi, a MIN_FONT_PT, entrano ancora nei controlli.
+# filename_vertical / progress_vertical: facoltativi, nome e waveform ruotati di 90°.
+# short_times: facoltativo, tempi sempre senza 'Elapsed:'/'Remaining:'.
+# band: facoltativo, (fisso, (elastici...)): il fisso ha larghezza che segue
+#      l'altezza del widget, gli elastici alla sua destra si spartiscono il resto.
+# gain_font_mid: facoltativo, gain a metà tra il font comune e quello dei tempi.
 # max: facoltativo, limite del widget: DENSE_A resta una riga, STRIP_A una striscia.
 # narrow: facoltativo, {controllo: (x, larghezza)} in pixel alla larghezza min:
 #      tra min e ref si passa linearmente da qui a items, così a cedere spazio
 #      sono i controlli scelti e non tutti in proporzione.
-# texts: testi diversi da quelli predefiniti ('' = solo icona).
 LAYOUT_SPECS = {
     'COMPACT': {
-        'ref': (626, 99), 'min': (500, 70), 'slider_vertical': False, 'texts': {},
+        'ref': (626, 99), 'min': (500, 70), 'slider_vertical': False,
         'items': {
             'btnChangeLayout':  (10, 10, 28, 25),
             'btnPlay':          (44, 10, 80, 25),
@@ -35,7 +39,7 @@ LAYOUT_SPECS = {
         },
     },
     'TOUCH': {
-        'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True, 'texts': {},
+        'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True,
         'narrow': {
             'btnRemove': (5, 52), 'btnNorm': (5, 52), 'btnChangeLayout': (60, 30),
             'filename_label': (60, 98), 'lblElapsedTime': (93, 29), 'lblRemainingTime': (125, 33),
@@ -65,7 +69,7 @@ LAYOUT_SPECS = {
         },
     },
     'STANDARD': {
-        'ref': (818, 127), 'min': (510, 85), 'slider_vertical': False, 'texts': {},
+        'ref': (818, 127), 'min': (510, 85), 'slider_vertical': False,
         'items': {
             'btnChangeLayout':    (10, 10, 105, 21),
             'filename_label':     (121, 10, 591, 21),
@@ -86,7 +90,7 @@ LAYOUT_SPECS = {
         },
     },
     'COMPACT_V': {
-        'ref': (336, 113), 'min': (270, 96), 'slider_vertical': True, 'texts': {},
+        'ref': (336, 113), 'min': (270, 96), 'slider_vertical': True,
         'items': {
             'btnRemove':        (10, 10, 150, 21),
             'btnChangeLayout':  (166, 10, 134, 21),
@@ -101,7 +105,6 @@ LAYOUT_SPECS = {
     },
     'DENSE_A': {
         'ref': (982, 46), 'min': (680, 40), 'max': (QWIDGETSIZE_MAX, 46), 'slider_vertical': False,
-        'texts': {'btnPlay': '', 'btnStop': '', 'btnFadeIn': '', 'btnFadeOut': ''},
         'items': {
             'btnPlay':          (10, 10, 28, 26),
             'btnStop':          (44, 10, 28, 26),
@@ -119,20 +122,21 @@ LAYOUT_SPECS = {
         },
     },
     'STRIP_A': {
-        'ref': (157, 460), 'min': (130, 300), 'max': (176, QWIDGETSIZE_MAX), 'slider_vertical': True,
-        'texts': {'btnPlay': '', 'btnStop': '', 'btnFadeIn': 'IN', 'btnFadeOut': 'OUT'},
+        'ref': (157, 460), 'min': (89, 300), 'max': (176, QWIDGETSIZE_MAX), 'slider_vertical': True,
+        'filename_vertical': True, 'progress_vertical': True, 'short_times': True,
+        'band': ('filename_label', ('progress_bar', 'slidVolume')), 'gain_font_mid': True,
         'items': {
             'btnMore':          (10, 10, 137, 24),
-            'filename_label':   (10, 40, 137, 24),
-            'lblRemainingTime': (10, 70, 137, 22),
-            'progress_bar':     (10, 98, 137, 8),
-            'slidVolume':       (60, 112, 36, 222),
-            'lblVolume':        (10, 340, 66, 26),
-            'spinboxGain':      (81, 340, 66, 26),
-            'btnFadeIn':        (10, 372, 66, 36),
-            'btnFadeOut':       (81, 372, 66, 36),
-            'btnPlay':          (10, 414, 66, 36),
-            'btnStop':          (81, 414, 66, 36),
+            'lblElapsedTime':   (10, 40, 137, 20),
+            'lblRemainingTime': (10, 64, 137, 20),
+            'filename_label':   (10, 90, 20, 194),
+            'progress_bar':     (36, 90, 8, 194),
+            'slidVolume':       (50, 90, 97, 194),
+            'spinboxGain':      (10, 290, 137, 22),
+            'btnPlay':          (10, 318, 137, 30),
+            'btnFadeIn':        (10, 352, 137, 30),
+            'btnFadeOut':       (10, 386, 137, 30),
+            'btnStop':          (10, 420, 137, 30),
         },
     },
 }
@@ -153,11 +157,17 @@ class FluidLayout(QLayout):
         self._narrow = {}
         self._ref = (1, 1)
         self._min = (0, 0)
+        self._band = None
         self._on_geometry = on_geometry
 
     def set_sizes(self, ref: tuple, minimum: tuple) -> None:
         self._ref = ref
         self._min = minimum
+        self.invalidate()
+
+    def set_band(self, fixed=None, flex=()) -> None:
+        """`fixed` largo in proporzione all'altezza, `flex` si spartiscono il resto."""
+        self._band = (fixed, tuple(flex)) if fixed is not None else None
         self.invalidate()
 
     def place(self, widget, rect: tuple, narrow: tuple = None) -> None:
@@ -196,17 +206,37 @@ class FluidLayout(QLayout):
         super().setGeometry(rect)
         sx = rect.width() / self._ref[0]
         sy = rect.height() / self._ref[1]
+        edges = {}
         for item in self._items:
             widget = item.widget()
             x, y, w, h = self._rects[widget]
             # Si arrotondano i bordi, non le dimensioni: la somma di larghezze
             # arrotondate farebbe sovrapporre o distanziare i vicini.
-            left, right = self._edges(widget, x, x + w, rect.width(), sx)
+            edges[widget] = self._edges(widget, x, x + w, rect.width(), sx)
+        if self._band is not None and self._band[0] in edges:
+            self._apply_band(edges, sx, sy)
+        for widget, (left, right) in edges.items():
+            x, y, w, h = self._rects[widget]
             top = round(y * sy)
             widget.setGeometry(QRect(rect.x() + left, rect.y() + top,
                                      right - left, round((y + h) * sy) - top))
         if self._on_geometry is not None:
             self._on_geometry()
+
+    def _apply_band(self, edges, sx, sy):
+        fixed, flex = self._band
+        fx, _, fw, _ = self._rects[fixed]
+        left = edges[fixed][0]
+        band_right = max(edges[f][1] for f in flex)
+        ref_first = min(self._rects[f][0] for f in flex)
+        ref_right = max(self._rects[f][0] + self._rects[f][2] for f in flex)
+        width = min(round(fw * sy), (band_right - left) // 2)
+        start = left + width + round((ref_first - fx - fw) * sx)
+        k = (band_right - start) / (ref_right - ref_first)
+        edges[fixed] = (left, left + width)
+        for f in flex:
+            x, _, w, _ = self._rects[f]
+            edges[f] = (start + round((x - ref_first) * k), start + round((x + w - ref_first) * k))
 
     def _edges(self, widget, left, right, width, sx):
         narrow = self._narrow[widget]

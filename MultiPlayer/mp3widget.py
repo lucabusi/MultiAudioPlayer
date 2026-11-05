@@ -2,8 +2,9 @@ import os
 import logging
 from enum import Enum
 from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar, QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QHBoxLayout, QSlider, QSizePolicy
-from PySide6.QtCore import Qt, Signal, QPoint, QMimeData, QSize
-from PySide6.QtGui import QIcon, QDrag, QPixmap, QPainter, QColor, QAction
+from PySide6.QtCore import Qt, Signal, QPoint, QMimeData, QSize, QRect
+from PySide6.QtGui import QDrag, QPixmap, QPainter, QColor, QAction, QFont, QFontMetrics
+import icons
 from mp3file import Mp3File
 from waveform_service import WaveformService
 from fluid_layout import FluidLayout, LAYOUT_SPECS, MIN_FONT_PT, MAX_FONT_SCALE, QWIDGETSIZE_MAX
@@ -18,6 +19,14 @@ _DRAG_BLOCKERS = (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressB
 # valore: si tolgono, restano rotella e tastiera.
 _SPINBOX_ARROWS_WIDTH = 70
 
+# Lato del simbolo rispetto al lato corto del suo pulsante.
+_SYMBOL_RATIO = 0.6
+
+# Altezza massima del testo di una label rispetto alla label stessa, e
+# ingrandimento massimo del font di una label rispetto al font base.
+_LABEL_TEXT_RATIO = 0.85
+_LABEL_MAX_SCALE = 4
+
 
 class WidgetLayout(Enum):
     COMPACT = 1
@@ -28,8 +37,54 @@ class WidgetLayout(Enum):
     STRIP_A = 6
 
 
+def _symbol_button(symbol: str, tooltip: str) -> QPushButton:
+    """Pulsante con solo simbolo: il nome dell'azione resta nel tooltip."""
+    btn = QPushButton()
+    btn.setIcon(icons.icon(symbol))
+    btn.setToolTip(tooltip)
+    return btn
+
+
 def seconds_to_min_sec(seconds: int) -> str:
     return f"{seconds // 60:02}:{seconds % 60:02}"
+
+
+def _elide_wrapped(fm, text: str, length: int, thickness: int) -> str:
+    """Testo abbreviato quanto basta per stare, andando a capo, in righe lunghe
+    `length` impilate entro `thickness`."""
+    budget = length * max(1, thickness // fm.lineSpacing())
+    while True:
+        elided = fm.elidedText(text, Qt.ElideMiddle, budget)
+        wrapped = fm.boundingRect(QRect(0, 0, length, QWIDGETSIZE_MAX), Qt.TextWordWrap, elided)
+        if wrapped.height() <= thickness or budget <= length:
+            return elided
+        budget -= fm.averageCharWidth()
+
+
+class RotatableLabel(QLabel):
+    """QLabel che in verticale disegna il testo ruotato di 90°, dal basso in alto,
+    andando a capo quando la colonna è abbastanza larga per più righe."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.vertical = False
+
+    def set_vertical(self, vertical: bool) -> None:
+        self.vertical = vertical
+        self.update()
+
+    def paintEvent(self, event):
+        if not self.vertical:
+            super().paintEvent(event)
+            return
+        QFrame.paintEvent(self, event)  # cornice da stylesheet
+        painter = QPainter(self)
+        painter.translate(0, self.height())
+        painter.rotate(-90)
+        rect = QRect(0, 0, self.height(), self.width())
+        self.style().drawItemText(painter, rect, Qt.AlignCenter | Qt.TextWordWrap, self.palette(),
+                                  self.isEnabled(), self.text(), self.foregroundRole())
+        painter.end()
 
 
 class ClickableProgressBar(QProgressBar):
@@ -38,14 +93,24 @@ class ClickableProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._waveform: QPixmap | None = None
+        # In verticale il tempo scorre dal basso in alto, come il nome ruotato.
+        self.vertical = False
 
     def set_waveform(self, pixmap: QPixmap):
         self._waveform = pixmap
         self.update()
 
+    def set_vertical(self, vertical: bool) -> None:
+        self.vertical = vertical
+        self.update()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         rect = self.rect()
+        if self.vertical:
+            painter.translate(0, self.height())
+            painter.rotate(-90)
+            rect = QRect(0, 0, self.height(), self.width())
         if self._waveform is not None and not self._waveform.isNull():
             painter.drawPixmap(rect, self._waveform)
         else:
@@ -59,13 +124,14 @@ class ClickableProgressBar(QProgressBar):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            total_width = self.width()
+            pos = event.position()
+            total_width = self.height() if self.vertical else self.width()
             if total_width <= 0:
                 # Widget non ancora dimensionato; ignora il click per evitare
                 # divisione per zero.
                 super().mousePressEvent(event)
                 return
-            click_position = event.x()
+            click_position = total_width - pos.y() if self.vertical else pos.x()
             new_value = int(click_position / total_width * (self.maximum() - self.minimum()) + self.minimum())
             self.setValue(new_value)
             if self.maximum() > 0:
@@ -94,6 +160,7 @@ class Mp3Widget(QWidget):
         self._font_pt = None
         self._base_font_pt = None
         self._elapsed_s = 0
+        self._long_times = False  # "Elapsed: …" / "Remaining: …" oppure solo i tempi
         self._remaining_s = round(self.mp3file.mp3_total_duration / 1000)
         self.widgetLayout = layout
         self.current_layout_name = self.widgetLayout.name
@@ -181,15 +248,13 @@ class Mp3Widget(QWidget):
         self.widget_file_frame_layout = FluidLayout(self._adapt_to_size)
         self.widget_main_frame.setLayout(self.widget_file_frame_layout)
 
-        self.filename_label = QLabel()
+        self.filename_label = RotatableLabel()
         self.set_filename_text(os.path.basename(self.mp3file.file_name))
         self.filename_label.setToolTip(self._filename_text)
         self.progress_bar = self.create_progress_bar()
-        self.btnPlay = QPushButton("Play/Pause")
-        self.btnPlay.setIcon(QIcon.fromTheme("media-playback-start"))
+        self.btnPlay = _symbol_button('play', "Play/Pause")
         self.btnPlay.clicked.connect(self.on_play_pause_clicked)
-        self.btnFadeIn = QPushButton("FadeIn")
-        self.btnFadeIn.setIcon(QIcon.fromTheme("go-up"))
+        self.btnFadeIn = _symbol_button('fade_in', "Fade In")
         self.btnFadeIn.clicked.connect(self.on_fade_in_clicked)
         self.spinboxFadeTime = QDoubleSpinBox()
         self.spinboxFadeTime.setAlignment(Qt.AlignRight)
@@ -197,17 +262,13 @@ class Mp3Widget(QWidget):
         self.spinboxFadeTime.setValue(self.fade_time)
         self.spinboxFadeTime.setSingleStep(0.5)
         self.spinboxFadeTime.valueChanged.connect(self.update_fade_time)
-        self.btnFadeOut = QPushButton("Fade Out")
-        self.btnFadeOut.setIcon(QIcon.fromTheme("go-down"))
+        self.btnFadeOut = _symbol_button('fade_out', "Fade Out")
         self.btnFadeOut.clicked.connect(self.on_fade_out_clicked)
-        self.btnStop = QPushButton("Stop")
+        self.btnStop = _symbol_button('stop', "Stop")
         self.btnStop.clicked.connect(self.on_stop_clicked)
-        self.btnStop.setIcon(QIcon.fromTheme("media-playback-stop"))
-        self.btnRemove = QPushButton("Remove")
-        self.btnRemove.setIcon(QIcon.fromTheme("user-trash"))
+        self.btnRemove = _symbol_button('remove', "Remove")
         self.btnRemove.clicked.connect(self.on_remove_clicked)
-        self.btnNorm = QPushButton("Norm")
-        self.btnNorm.setIcon(QIcon.fromTheme("audio-volume-high"))
+        self.btnNorm = _symbol_button('norm', "Normalize")
         self.btnNorm.clicked.connect(self.on_normalize_clicked)
         self.slidVolume = QSlider(Qt.Vertical)
         self.slidVolume.setMinimum(0)
@@ -228,8 +289,6 @@ class Mp3Widget(QWidget):
         self.lblElapsedTime.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.lblRemainingTime = QLabel()
         self._refresh_time_labels()
-        self._default_texts = {w: w.text() for w in (
-            self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut)}
         self.btnFadePreset1 = QPushButton("1")
         self.btnFadePreset1.clicked.connect(lambda: self.spinboxFadeTime.setValue(1))
         self.btnFadePreset2 = QPushButton("3")
@@ -252,7 +311,8 @@ class Mp3Widget(QWidget):
         self.fade_preset_widget.setLayout(fade_preset_layout)
 
         self.btnChangeLayout = QToolButton()
-        self.btnChangeLayout.setIcon(QIcon.fromTheme("document-properties"))
+        self.btnChangeLayout.setIcon(icons.icon('layout'))
+        self.btnChangeLayout.setToolTip("Layout")
         self.btnChangeLayout.setPopupMode(QToolButton.InstantPopup)
         layout_menu = QMenu(self)
 
@@ -285,7 +345,8 @@ class Mp3Widget(QWidget):
 
         # Solo STRIP_A: le azioni secondarie stanno nel menu "⋯".
         self.btnMore = QToolButton()
-        self.btnMore.setText("⋯")
+        self.btnMore.setIcon(icons.icon('more'))
+        self.btnMore.setToolTip("Altro")
         self.btnMore.setPopupMode(QToolButton.InstantPopup)
         more_menu = QMenu(self)
         more_menu.addMenu(layout_menu)
@@ -317,14 +378,14 @@ class Mp3Widget(QWidget):
 
         spec = LAYOUT_SPECS[self.widgetLayout.name]
         self.slidVolume.setOrientation(Qt.Vertical if spec['slider_vertical'] else Qt.Horizontal)
-        for w, text in self._default_texts.items():
-            w.setText(text)
-        for name, text in spec['texts'].items():
-            getattr(self, name).setText(text)
+        self.filename_label.set_vertical(spec.get('filename_vertical', False))
+        self.progress_bar.set_vertical(spec.get('progress_vertical', False))
 
         self.setMaximumSize(*spec.get('max', (QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)))
         layout.set_sizes(spec['ref'], spec['min'])
         narrow = spec.get('narrow', {})
+        fixed, flex = spec.get('band', (None, ()))
+        layout.set_band(getattr(self, fixed) if fixed else None, [getattr(self, n) for n in flex])
         for name, rect in spec['items'].items():
             layout.place(getattr(self, name), rect, narrow.get(name))
         self._font_pt = None  # i controlli appena entrati non hanno il font scalato
@@ -346,22 +407,106 @@ class Mp3Widget(QWidget):
                 font = child.font()
                 font.setPointSizeF(pt)
                 child.setFont(font)
-                if isinstance(child, QAbstractButton):
-                    side = round(16 * pt / self._base_font_pt)
-                    child.setIconSize(QSize(side, side))
-        self._elide_filename()
-        self._refresh_time_labels()
+        # Pulsanti con solo simbolo: l'icona segue il pulsante, non il font.
+        for btn in frame.findChildren(QAbstractButton):
+            if not btn.icon().isNull():
+                side = round(_SYMBOL_RATIO * min(btn.width(), btn.height()))
+                if btn.iconSize().width() != side:
+                    btn.setIconSize(QSize(side, side))
+        self._fit_label_texts()
         for spin in (self.spinboxFadeTime, self.spinboxGain):
             arrows = spin.width() >= spin.fontMetrics().horizontalAdvance(spin.text()) + _SPINBOX_ARROWS_WIDTH
             spin.setButtonSymbols(QAbstractSpinBox.UpDownArrows if arrows else QAbstractSpinBox.NoButtons)
 
     def set_filename_text(self, text: str) -> None:
         self._filename_text = text
+        if self._font_pt is not None:
+            self._fit_font(self.filename_label, (text,))
         self._elide_filename()
+
+    def _fit_label_texts(self):
+        """Ogni label prende il font più grande con cui il testo ci sta, mai
+        sotto quello comune: un font unico per tutto il widget, calcolato sul
+        lato più stretto, lasciava i testi piccoli nelle label ampie."""
+        times = [l for l in (self.lblElapsedTime, self.lblRemainingTime) if l.parent() is not None]
+        # Forma lunga o breve si decide col font comune: col font ingrandito
+        # la forma lunga non entrerebbe più e i tempi cambierebbero forma.
+        common = QFont(self.lblRemainingTime.font())
+        common.setPointSizeF(self._font_pt)
+        fm = QFontMetrics(common)
+        rows = {self.lblElapsedTime: f"Elapsed: {seconds_to_min_sec(self._elapsed_s)}",
+                self.lblRemainingTime: f"Remaining: {seconds_to_min_sec(self._remaining_s)}"}
+        self._long_times = not LAYOUT_SPECS[self.widgetLayout.name].get('short_times') and all(
+            fm.horizontalAdvance(rows[l]) <= l.contentsRect().width() for l in times)
+        self._refresh_time_labels()
+        # Stessa taglia per i due tempi: affiancati, a taglie diverse stonano.
+        # Una cifra in più: i minuti a tre cifre devono entrare senza cambiare taglia.
+        pt = min((self._fit_font(l, ('0' + l.text(),), apply=False) for l in times), default=None)
+        for l in times:
+            self._set_font_pt(l, pt)
+        self._fit_font(self.lblVolume, ("100",))
+        name_pt = self._fit_font(self.filename_label, (self._filename_text,), apply=False)
+        if self.filename_label.vertical and pt is not None:
+            # Nome ruotato appena più piccolo dei tempi, che hanno la stessa altezza.
+            name_pt = max(MIN_FONT_PT, min(name_pt, pt) - 1)
+        self._set_font_pt(self.filename_label, name_pt)
+        self._elide_filename()
+        if LAYOUT_SPECS[self.widgetLayout.name].get('gain_font_mid') and pt is not None:
+            # Il gain col font comune spariva accanto alle label ingrandite.
+            gain = self.spinboxGain
+            mid = round(self._font_pt + pt) / 2  # passi di 0.5
+            fm = QFontMetrics(QFont(gain.font().family(), mid))
+            if fm.horizontalAdvance(gain.text()) <= gain.width() and fm.height() <= gain.height():
+                self._set_font_pt(gain, mid)
+
+    def _fit_font(self, label, texts, apply=True) -> float:
+        """Punti del font più grande (passi di 0.5) con cui ogni testo di
+        `texts` sta nella label e non supera _LABEL_TEXT_RATIO della sua
+        altezza; mai sotto il font comune. In verticale il testo va a capo."""
+        rect = label.contentsRect()
+        vertical = getattr(label, 'vertical', False)
+        length, thickness = (rect.height(), rect.width()) if vertical else (rect.width(), rect.height())
+        font = QFont(label.font())
+        pt = self._base_font_pt * _LABEL_MAX_SCALE
+        while pt > self._font_pt:
+            font.setPointSizeF(pt)
+            fm = QFontMetrics(font)
+            if fm.height() <= thickness * _LABEL_TEXT_RATIO and all(
+                    self._text_fits(fm, t, length, thickness, vertical) for t in texts):
+                break
+            pt -= 0.5
+        pt = max(pt, self._font_pt)
+        if apply:
+            self._set_font_pt(label, pt)
+        return pt
+
+    @staticmethod
+    def _text_fits(fm, text, length, thickness, vertical) -> bool:
+        if not vertical:
+            return fm.horizontalAdvance(text) <= length
+        br = fm.boundingRect(QRect(0, 0, length, QWIDGETSIZE_MAX), Qt.TextWordWrap, text)
+        return br.width() <= length and br.height() <= thickness
+
+    @staticmethod
+    def _set_font_pt(widget, pt):
+        """Anche sui figli: il font comune è impostato esplicitamente su ognuno
+        (es. il campo di testo di una spinbox) e non erediterebbe quello nuovo."""
+        if pt is None:
+            return
+        for w in (widget, *widget.findChildren(QWidget)):
+            if w.font().pointSizeF() != pt:
+                font = w.font()
+                font.setPointSizeF(pt)
+                w.setFont(font)
 
     def _elide_filename(self):
         label = self.filename_label
-        elided = label.fontMetrics().elidedText(self._filename_text, Qt.ElideMiddle, label.width())
+        fm = label.fontMetrics()
+        rect = label.contentsRect()
+        if label.vertical:
+            elided = _elide_wrapped(fm, self._filename_text, rect.height(), rect.width())
+        else:
+            elided = fm.elidedText(self._filename_text, Qt.ElideMiddle, rect.width())
         if label.text() != elided:
             label.setText(elided)
 
@@ -369,6 +514,7 @@ class Mp3Widget(QWidget):
         btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")
 
     def _on_playback_state_changed(self, state: str):
+        self.btnPlay.setIcon(icons.icon('pause' if state == 'playing' else 'play'))
         if state == 'playing':
             self.changeButtonStyle(self.btnPlay, "green")
         elif state == 'paused':
@@ -565,18 +711,14 @@ class Mp3Widget(QWidget):
             self._refresh_time_labels()
 
     def _refresh_time_labels(self):
-        """Forma lunga se entra in entrambe le label, altrimenti solo il tempo.
-
-        Si decide insieme: vedere una forma lunga accanto a una breve confonde.
-        La label del tempo trascorso conta solo se è nel layout corrente."""
+        """Testi dei tempi nella forma scelta da _fit_label_texts (lunga o solo
+        il tempo), la stessa per entrambe: lunga accanto a breve confonde."""
         elapsed = seconds_to_min_sec(self._elapsed_s)
         remaining = seconds_to_min_sec(self._remaining_s)
         rows = ((self.lblElapsedTime, f"Elapsed: {elapsed}", elapsed),
                 (self.lblRemainingTime, f"Remaining: {remaining}", f"-{remaining}"))
-        fits = all(label.fontMetrics().horizontalAdvance(long_text) <= label.width()
-                   for label, long_text, _ in rows if label.parent() is not None)
         for label, long_text, short_text in rows:
-            text = long_text if fits else short_text
+            text = long_text if self._long_times else short_text
             if label.text() != text:
                 label.setText(text)
 
