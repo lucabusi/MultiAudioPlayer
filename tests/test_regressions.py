@@ -1427,16 +1427,22 @@ def test_testi_label_riempiono_lo_spazio():
         ref = LAYOUT_SPECS[L.name]['ref']
         for taglia in (ref, (ref[0] * 3 // 2, ref[1] * 3 // 2)):
             _ridimensiona(w, *taglia)
-            for n in ('filename_label', 'lblElapsedTime', 'lblRemainingTime', 'lblVolume'):
-                lbl = getattr(w, n)
-                if lbl.parent() is None:
+            # I due tempi hanno di proposito la stessa taglia, decisa dalla
+            # label più stretta: il riempimento si valuta sulla coppia (su
+            # Windows, coi suoi font, il trascorso restava a 0.58).
+            for gruppo in (('filename_label',), ('lblElapsedTime', 'lblRemainingTime'), ('lblVolume',)):
+                labels = [getattr(w, n) for n in gruppo if getattr(w, n).parent() is not None]
+                if not labels:
                     continue
-                entra, pieno = _riempimento(lbl)
-                # Sotto il font comune non si scende: lì il testo può sforare
-                # come gli altri controlli (es. COMPACT_V, label alte 18px).
-                ingrandita = lbl.font().pointSizeF() > w._font_pt
-                if (ingrandita and not entra) or pieno < 0.6:
-                    errori.append((L.name, taglia, n, lbl.text(), entra, round(pieno, 2)))
+                misure = [_riempimento(lbl) for lbl in labels]
+                for lbl, (entra, _) in zip(labels, misure):
+                    # Sotto il font comune non si scende: lì il testo può sforare
+                    # come gli altri controlli (es. COMPACT_V, label alte 18px).
+                    if lbl.font().pointSizeF() > w._font_pt and not entra:
+                        errori.append((L.name, taglia, lbl.text(), 'non entra'))
+                pieno = max(p for _, p in misure)
+                if pieno < 0.6:
+                    errori.append((L.name, taglia, gruppo, round(pieno, 2)))
     w.shutdown()
     assert not errori, errori
 
