@@ -41,8 +41,8 @@ LAYOUT_SPECS = {
     'TOUCH': {
         'ref': (961, 152), 'min': (516, 92), 'slider_vertical': True,
         'narrow': {
-            'btnRemove': (5, 52), 'btnNorm': (5, 52), 'btnChangeLayout': (60, 30),
-            'filename_label': (60, 98), 'lblElapsedTime': (93, 29), 'lblRemainingTime': (125, 33),
+            'btnRemove': (5, 46), 'btnNorm': (5, 46), 'btnChangeLayout': (54, 27),
+            'filename_label': (54, 104), 'lblElapsedTime': (84, 33), 'lblRemainingTime': (120, 38),
             'btnPlay': (161, 58), 'btnFadeIn': (222, 58),
             'spinboxFadeTime': (283, 44), 'fade_preset_widget': (283, 44),
             'btnFadeOut': (330, 58), 'btnStop': (391, 58),

@@ -10,7 +10,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 
 _SIZE = 64
-_COLOR = QColor('#1f2a33')
+_COLOR = '#1f2a33'
 _cache = {}
 
 
@@ -40,7 +40,7 @@ def _fade_out(p):
 
 
 def _remove(p):
-    p.setPen(QPen(_COLOR, 9, Qt.SolidLine, Qt.RoundCap))
+    p.setPen(QPen(p.brush().color(), 9, Qt.SolidLine, Qt.RoundCap))
     p.drawLine(14, 14, 50, 50)
     p.drawLine(50, 14, 14, 50)
 
@@ -70,16 +70,18 @@ _DRAW = {'play': _play, 'pause': _pause, 'stop': _stop, 'fade_in': _fade_in,
          'layout': _layout, 'more': _more}
 
 
-def icon(name: str) -> QIcon:
-    """Icona `name` (chiave di _DRAW); sempre la stessa istanza per nome."""
-    if name not in _cache:
+def icon(name: str, color: str = _COLOR) -> QIcon:
+    """Icona `name` (chiave di _DRAW) nel colore `color`; sempre la stessa
+    istanza per nome e colore."""
+    key = (name, color)
+    if key not in _cache:
         pixmap = QPixmap(_SIZE, _SIZE)
         pixmap.fill(Qt.transparent)
         p = QPainter(pixmap)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)
-        p.setBrush(_COLOR)
+        p.setBrush(QColor(color))
         _DRAW[name](p)
         p.end()
-        _cache[name] = QIcon(pixmap)
-    return _cache[name]
+        _cache[key] = QIcon(pixmap)
+    return _cache[key]

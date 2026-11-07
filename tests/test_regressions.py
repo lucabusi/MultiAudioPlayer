@@ -70,7 +70,8 @@ def _su_font_reali(test):
 
 
 def _is_green(btn):
-    return 'green' in btn.styleSheet()
+    """Pulsante acceso (play che suona, fade in corso): indipendente dal tema."""
+    return btn.property('state') == 'on'
 
 
 # ---------------------------------------------------------------------------
@@ -1548,14 +1549,125 @@ def test_strip_a_font_nome_e_gain():
 
 
 def test_play_mostra_pausa_mentre_suona():
-    import icons
     w = _nuovo_widget('TOUCH')
-    assert w.btnPlay.icon().cacheKey() == icons.icon('play').cacheKey()
+    assert w.btnPlay.property('symbol') == 'play'
     w._on_playback_state_changed('playing')
-    assert w.btnPlay.icon().cacheKey() == icons.icon('pause').cacheKey()
+    assert w.btnPlay.property('symbol') == 'pause'
     w._on_playback_state_changed('paused')
-    assert w.btnPlay.icon().cacheKey() == icons.icon('play').cacheKey()
+    assert w.btnPlay.property('symbol') == 'play'
     w.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Tema Foyer scuro: card, campi e pulsanti scuri in ogni layout, testi chiari,
+# waveform su fondo scuro con la parte già suonata in verde.
+# ---------------------------------------------------------------------------
+def _luma(c):
+    return 0.2126 * c.red() + 0.7152 * c.green() + 0.0722 * c.blue()
+
+
+@_su_font_reali
+def test_tema_foyer_scuro_in_tutti_i_layout():
+    from fluid_layout import LAYOUT_SPECS
+    for name in _TUTTI_I_LAYOUT:
+        w = _nuovo_widget(name)
+        _ridimensiona(w, *LAYOUT_SPECS[name]['ref'])
+        w.show()
+        _pump(50)
+        img = w.grab().toImage()
+        fondo = img.pixelColor(5, img.height() // 2).name()
+        lumi = [_luma(img.pixelColor(x, y))
+                for x in range(0, img.width(), 3) for y in range(0, img.height(), 3)]
+        n = w.filename_label.geometry()
+        testo = max(_luma(img.pixelColor(x, y))
+                    for x in range(n.left(), n.right()) for y in range(n.top(), n.bottom()))
+        w.shutdown()
+        assert fondo == '#1a2027', (name, fondo)
+        assert sum(lumi) / len(lumi) < 60, (name, sum(lumi) / len(lumi))
+        assert testo > 200, (name, testo)
+
+
+@_su_font_reali
+def test_tempi_non_tagliati_dalla_cornice_delle_label():
+    # QLabel con cornice sposta il testo di mezza 'x' (indent implicito): il
+    # testo misurato per stare in contentsRect veniva disegnato tagliato.
+    from fluid_layout import LAYOUT_SPECS
+    tagliati = []
+    for name in _TUTTI_I_LAYOUT:
+        w = _nuovo_widget(name)
+        w.show()
+        (w0, h0), (w1, h1) = LAYOUT_SPECS[name]['min'], LAYOUT_SPECS[name]['ref']
+        for k in range(9):  # il taglio dipende da font e DPI: più taglie lo trovano ovunque
+            taglia = (w0 + (w1 - w0) * k // 8, h0 + (h1 - h0) * k // 8)
+            _ridimensiona(w, *taglia)
+            for l in (w.lblElapsedTime, w.lblRemainingTime):
+                if l.parent() is None:
+                    continue
+                img = l.grab().toImage()
+                c = l.contentsRect()
+                inchiostro = [x for x in range(img.width()) for y in range(c.top(), c.bottom())
+                              if _luma(img.pixelColor(x, y)) > 120]
+                if inchiostro and max(inchiostro) >= c.right():  # arriva al bordo: tagliato
+                    tagliati.append((name, taglia, l.text()))
+        w.shutdown()
+    assert not tagliati, tagliati
+
+
+def test_tema_foyer_pulsanti_accesi_pieni_e_spenti_tinti():
+    w = _nuovo_widget('TOUCH')
+    _ridimensiona(w, 961, 152)
+    w.show()
+    _pump(50)
+
+    def centro(btn):
+        # Grab del widget intero: la tinta a riposo è semitrasparente sul frame.
+        g = btn.geometry()
+        return w.grab().toImage().pixelColor(g.left() + 4, g.center().y())  # lontano dal simbolo
+
+    spento = centro(w.btnPlay)
+    w._on_playback_state_changed('playing')
+    _pump(20)
+    acceso = centro(w.btnPlay)
+    w.shutdown()
+    assert _luma(spento) < 70, spento.name()
+    assert acceso.name() == '#3ecf8e', acceso.name()
+
+
+def test_waveform_tema_foyer_su_fondo_scuro_parte_suonata_verde():
+    w = _nuovo_widget('STANDARD')
+    _ridimensiona(w, 818, 127)
+    w.show()
+    bar = w.progress_bar
+    for _ in range(100):
+        if bar._waveform is not None:
+            break
+        _pump(50)
+    assert bar._waveform is not None, "waveform non arrivata"
+    bar.setValue(500)
+    _pump(20)
+    img = bar.grab().toImage()
+    w.shutdown()
+    W, H = img.width(), img.height()
+
+    def verdi(x0, x1):
+        return sum(1 for x in range(x0, x1) for y in range(H)
+                   if (c := img.pixelColor(x, y)).green() > c.red() + 60 and c.green() > c.blue() + 30)
+
+    assert verdi(0, W // 2 - 3) > 50, "parte suonata non verde"
+    assert verdi(W // 2 + 3, W) == 0, "parte non suonata verde"
+    assert _luma(img.pixelColor(W * 3 // 4, 3)) < 40, img.pixelColor(W * 3 // 4, 3).name()
+
+
+def test_finestra_principale_tema_foyer_scuro():
+    """run_app imposta palette e stile per tutta l'app: anche menu e dialoghi."""
+    code = (f"import os, sys; os.environ['QT_QPA_PLATFORM'] = 'offscreen'; sys.path.insert(0, {SRC!r}); "
+            "import mainapp; app, win = mainapp.run_app(); "
+            "img = win.centralWidget().viewport().grab().toImage(); "
+            "print(img.pixelColor(img.width() // 2, img.height() // 2).name(), app.style().name())")
+    r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr[-1500:]
+    colore, stile = r.stdout.split()[-2:]
+    assert (colore, stile) == ('#0f1317', 'fusion'), r.stdout
 
 
 def main():

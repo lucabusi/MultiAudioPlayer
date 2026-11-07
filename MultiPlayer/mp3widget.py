@@ -2,9 +2,10 @@ import os
 import logging
 from enum import Enum
 from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QAbstractSpinBox, QProgressBar, QWidget, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QFrame, QToolButton, QMenu, QHBoxLayout, QSlider, QSizePolicy
-from PySide6.QtCore import Qt, Signal, QPoint, QMimeData, QSize, QRect
+from PySide6.QtCore import Qt, Signal, QPoint, QMimeData, QSize, QRect, QRectF
 from PySide6.QtGui import QDrag, QPixmap, QPainter, QColor, QAction, QFont, QFontMetrics
 import icons
+import theme
 from mp3file import Mp3File
 from waveform_service import WaveformService
 from fluid_layout import FluidLayout, LAYOUT_SPECS, MIN_FONT_PT, MAX_FONT_SCALE, QWIDGETSIZE_MAX
@@ -38,12 +39,41 @@ class WidgetLayout(Enum):
     STRIP_A = 6  # alias del vecchio nome: i .mpp salvati prima lo contengono ancora
 
 
-def _symbol_button(symbol: str, tooltip: str) -> QPushButton:
+def _set_symbol(btn, symbol: str) -> None:
+    """Simbolo del pulsante nel colore del suo ruolo e del suo stato."""
+    btn.setProperty('symbol', symbol)
+    btn.setIcon(icons.icon(symbol, theme.role_color(btn.property('role'), btn.property('state') or '')))
+
+
+def _set_state(btn, state: str) -> None:
+    """'on' (acceso), 'paused' o '' (a riposo): lo stile segue la property."""
+    if (btn.property('state') or '') == state:
+        return
+    btn.setProperty('state', state)
+    btn.style().unpolish(btn)
+    btn.style().polish(btn)
+    _set_symbol(btn, btn.property('symbol'))
+
+
+def _symbol_button(symbol: str, tooltip: str, role: str, btn=None):
     """Pulsante con solo simbolo: il nome dell'azione resta nel tooltip."""
-    btn = QPushButton()
-    btn.setIcon(icons.icon(symbol))
+    btn = btn or QPushButton()
+    btn.setProperty('role', role)
+    _set_symbol(btn, symbol)
     btn.setToolTip(tooltip)
     return btn
+
+
+def _tinted(mask: QPixmap, color: str) -> QPixmap:
+    """La forma di `mask` (alpha) riempita di `color`."""
+    out = QPixmap(mask.size())
+    out.fill(Qt.transparent)
+    p = QPainter(out)
+    p.drawPixmap(0, 0, mask)
+    p.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    p.fillRect(out.rect(), QColor(color))
+    p.end()
+    return out
 
 
 def seconds_to_min_sec(seconds: int) -> str:
@@ -94,11 +124,15 @@ class ClickableProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._waveform: QPixmap | None = None
+        self._idle = self._played = None  # waveform nei colori del tema
         # In verticale il tempo scorre dal basso in alto, come il nome ruotato.
         self.vertical = False
 
     def set_waveform(self, pixmap: QPixmap):
         self._waveform = pixmap
+        if pixmap is not None and not pixmap.isNull():
+            self._idle = _tinted(pixmap, theme.WAVE_IDLE)
+            self._played = _tinted(pixmap, theme.WAVE_PLAYED)
         self.update()
 
     def set_vertical(self, vertical: bool) -> None:
@@ -107,20 +141,33 @@ class ClickableProgressBar(QProgressBar):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         rect = self.rect()
         if self.vertical:
             painter.translate(0, self.height())
             painter.rotate(-90)
             rect = QRect(0, 0, self.height(), self.width())
-        if self._waveform is not None and not self._waveform.isNull():
-            painter.drawPixmap(rect, self._waveform)
-        else:
-            painter.fillRect(rect, QColor('#4A5662'))
+        radius = min(theme.RADIUS, rect.height() / 2)
+        painter.setPen(QColor(theme.FIELD_BORDER))
+        painter.setBrush(QColor(theme.DISPLAY))
+        painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
+        inner = rect.adjusted(3, 4, -3, -4)
+        played = 0
         if self.maximum() > 0 and self.value() > 0:
-            chunk_width = int(rect.width() * self.value() / self.maximum())
-            painter.fillRect(rect.x(), rect.y(), chunk_width, rect.height(), QColor(0, 255, 0, 100))
-        painter.setPen(QColor('grey'))
-        painter.drawRect(rect.adjusted(0, 0, -1, -1))
+            played = int(inner.width() * self.value() / self.maximum())
+        if self._idle is not None:
+            painter.drawPixmap(inner, self._idle)
+            if played:
+                painter.save()
+                painter.setClipRect(inner.x(), inner.y(), played, inner.height())
+                painter.drawPixmap(inner, self._played)
+                painter.restore()
+        elif played:
+            color = QColor(theme.WAVE_PLAYED)
+            color.setAlphaF(0.35)
+            painter.fillRect(inner.x(), inner.y(), played, inner.height(), color)
+        if played:
+            painter.fillRect(inner.x() + played - 1, rect.y() + 1, 2, rect.height() - 2, QColor(theme.INK))
         painter.end()
 
     def mousePressEvent(self, event):
@@ -175,7 +222,6 @@ class Mp3Widget(QWidget):
         self.apply_layout()
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.defaultBtnStyle = "border: 1px solid; border-radius: 5px;"
         self.btnChangeLayout.setText(self.current_layout_name)
 
     def _is_drag_handle(self, pos) -> bool:
@@ -235,16 +281,10 @@ class Mp3Widget(QWidget):
         return 10
 
     def create_ui_elements(self):
+        theme.load_fonts()
         self.widget_main_frame = QFrame()
-        widget_main_frame_style = ("""
-        QFrame { background-color: #4A5662; border: 1px solid #5D6D7E; border-radius: 5px; }
-        QLabel { color: white; font-weight: bold; }
-        QDoubleSpinBox { color: black; }
-        QPushButton {background-color: #a5adb6; border: 1px solid; border-radius: 5px;}
-        QToolButton {background-color: #8c97a5; border: 1px solid; border-radius: 5px;}
-        """)
-
-        self.widget_main_frame.setStyleSheet(widget_main_frame_style)
+        self.widget_main_frame.setObjectName('card')
+        self.widget_main_frame.setStyleSheet(theme.frame_qss())
 
         self.widget_file_frame_layout = FluidLayout(self._adapt_to_size)
         self.widget_main_frame.setLayout(self.widget_file_frame_layout)
@@ -253,9 +293,9 @@ class Mp3Widget(QWidget):
         self.set_filename_text(os.path.basename(self.mp3file.file_name))
         self.filename_label.setToolTip(self._filename_text)
         self.progress_bar = self.create_progress_bar()
-        self.btnPlay = _symbol_button('play', "Play/Pause")
+        self.btnPlay = _symbol_button('play', "Play/Pause", 'play')
         self.btnPlay.clicked.connect(self.on_play_pause_clicked)
-        self.btnFadeIn = _symbol_button('fade_in', "Fade In")
+        self.btnFadeIn = _symbol_button('fade_in', "Fade In", 'fade')
         self.btnFadeIn.clicked.connect(self.on_fade_in_clicked)
         self.spinboxFadeTime = QDoubleSpinBox()
         self.spinboxFadeTime.setAlignment(Qt.AlignRight)
@@ -263,13 +303,13 @@ class Mp3Widget(QWidget):
         self.spinboxFadeTime.setValue(self.fade_time)
         self.spinboxFadeTime.setSingleStep(0.5)
         self.spinboxFadeTime.valueChanged.connect(self.update_fade_time)
-        self.btnFadeOut = _symbol_button('fade_out', "Fade Out")
+        self.btnFadeOut = _symbol_button('fade_out', "Fade Out", 'fade')
         self.btnFadeOut.clicked.connect(self.on_fade_out_clicked)
-        self.btnStop = _symbol_button('stop', "Stop")
+        self.btnStop = _symbol_button('stop', "Stop", 'stop')
         self.btnStop.clicked.connect(self.on_stop_clicked)
-        self.btnRemove = _symbol_button('remove', "Remove")
+        self.btnRemove = _symbol_button('remove', "Remove", 'util')
         self.btnRemove.clicked.connect(self.on_remove_clicked)
-        self.btnNorm = _symbol_button('norm', "Normalize")
+        self.btnNorm = _symbol_button('norm', "Normalize", 'util')
         self.btnNorm.clicked.connect(self.on_normalize_clicked)
         self.slidVolume = QSlider(Qt.Vertical)
         self.slidVolume.setMinimum(0)
@@ -290,6 +330,13 @@ class Mp3Widget(QWidget):
         self.lblElapsedTime.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.lblRemainingTime = QLabel()
         self._refresh_time_labels()
+        # Nomi usati dal QSS del tema.
+        for name in ('lblElapsedTime', 'lblRemainingTime', 'lblVolume'):
+            getattr(self, name).setObjectName(name)
+        # Con la cornice del QSS QLabel sposterebbe il testo di mezza 'x' oltre
+        # contentsRect, dove _fit_font lo misura: il testo uscirebbe tagliato.
+        for label in (self.filename_label, self.lblElapsedTime, self.lblRemainingTime, self.lblVolume):
+            label.setIndent(0)
         self.btnFadePreset1 = QPushButton("1")
         self.btnFadePreset1.clicked.connect(lambda: self.spinboxFadeTime.setValue(1))
         self.btnFadePreset2 = QPushButton("3")
@@ -302,18 +349,24 @@ class Mp3Widget(QWidget):
             policy.setVerticalPolicy(QSizePolicy.Preferred)
             btn.setSizePolicy(policy)
 
+        # Cifre a larghezza fissa: tempi e valori non ballano mentre cambiano.
+        # Gli altri testi in Inter, più stretto: le spinbox hanno poco spazio.
+        for w in (self.lblElapsedTime, self.lblRemainingTime, self.lblVolume):
+            w.setFont(theme.font(theme.MONO, w.font()))
+        for w in (self.filename_label, self.spinboxFadeTime, self.spinboxGain,
+                  self.btnFadePreset1, self.btnFadePreset2, self.btnFadePreset3):
+            w.setFont(theme.font(theme.FONT, w.font()))
+
         fade_preset_layout = QHBoxLayout()
         fade_preset_layout.setContentsMargins(0, 0, 0, 0)
-        fade_preset_layout.setSpacing(0)
+        fade_preset_layout.setSpacing(2)
         fade_preset_layout.addWidget(self.btnFadePreset1)
         fade_preset_layout.addWidget(self.btnFadePreset2)
         fade_preset_layout.addWidget(self.btnFadePreset3)
         self.fade_preset_widget = QWidget()
         self.fade_preset_widget.setLayout(fade_preset_layout)
 
-        self.btnChangeLayout = QToolButton()
-        self.btnChangeLayout.setIcon(icons.icon('layout'))
-        self.btnChangeLayout.setToolTip("Layout")
+        self.btnChangeLayout = _symbol_button('layout', "Layout", 'util', QToolButton())
         self.btnChangeLayout.setPopupMode(QToolButton.InstantPopup)
         layout_menu = QMenu(self)
 
@@ -345,9 +398,7 @@ class Mp3Widget(QWidget):
         self.layout_menu = layout_menu
 
         # Solo MIXER: le azioni secondarie stanno nel menu "⋯".
-        self.btnMore = QToolButton()
-        self.btnMore.setIcon(icons.icon('more'))
-        self.btnMore.setToolTip("Altro")
+        self.btnMore = _symbol_button('more', "Altro", 'util', QToolButton())
         self.btnMore.setPopupMode(QToolButton.InstantPopup)
         more_menu = QMenu(self)
         more_menu.addMenu(layout_menu)
@@ -511,39 +562,42 @@ class Mp3Widget(QWidget):
         if label.text() != elided:
             label.setText(elided)
 
-    def changeButtonStyle(self, btn, color):
-        btn.setStyleSheet(f"QPushButton {{background-color: {color}; {self.defaultBtnStyle} }} ")
-
     def _on_playback_state_changed(self, state: str):
-        self.btnPlay.setIcon(icons.icon('pause' if state == 'playing' else 'play'))
+        _set_symbol(self.btnPlay, 'pause' if state == 'playing' else 'play')
         if state == 'playing':
-            self.changeButtonStyle(self.btnPlay, "green")
+            _set_state(self.btnPlay, 'on')
         elif state == 'paused':
             # La pausa passa da Mp3File._stop_active_fade: qualsiasi fade in
             # corso è stato annullato, quindi gli indicatori vanno spenti.
-            self.changeButtonStyle(self.btnPlay, "red")
+            _set_state(self.btnPlay, 'paused')
             self._clear_fade_indicators()
         elif state == 'stopped':
-            self.changeButtonStyle(self.btnPlay, "")
+            _set_state(self.btnPlay, '')
             self._clear_fade_indicators()
 
     def _clear_fade_indicators(self):
-        self.changeButtonStyle(self.btnFadeIn, "")
-        self.changeButtonStyle(self.btnFadeOut, "")
+        _set_state(self.btnFadeIn, '')
+        _set_state(self.btnFadeOut, '')
 
     def _on_fade_in_started(self):
-        self.changeButtonStyle(self.btnFadeOut, "")
-        self.changeButtonStyle(self.btnFadeIn, "green")
+        _set_state(self.btnFadeOut, '')
+        _set_state(self.btnFadeIn, 'on')
 
     def _on_fade_in_finished(self):
-        self.changeButtonStyle(self.btnFadeIn, "")
+        _set_state(self.btnFadeIn, '')
 
     def _on_fade_out_started(self):
-        self.changeButtonStyle(self.btnFadeIn, "")
-        self.changeButtonStyle(self.btnFadeOut, "green")
+        _set_state(self.btnFadeIn, '')
+        _set_state(self.btnFadeOut, 'on')
 
     def _on_fade_out_finished(self):
-        self.changeButtonStyle(self.btnFadeOut, "")
+        _set_state(self.btnFadeOut, '')
+
+    def _show_error(self) -> None:
+        """Nome in rosso: il QSS del tema segue la property `error`."""
+        self.filename_label.setProperty('error', True)
+        self.filename_label.style().unpolish(self.filename_label)
+        self.filename_label.style().polish(self.filename_label)
 
     def _on_loaded(self):
         """Il backend è pronto: la durata reale è ora disponibile."""
@@ -554,7 +608,7 @@ class Mp3Widget(QWidget):
         """Backend non inizializzabile: disabilita i controlli e segnala l'errore."""
         logger.error(f"Load error for {self.mp3file.file_name}: {message}")
         self.set_filename_text(f"⚠ {os.path.basename(self.mp3file.file_name)}")
-        self.filename_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self._show_error()
         self.filename_label.setToolTip(f"Errore caricamento backend: {message}")
         for w in (self.btnPlay, self.btnStop, self.btnFadeIn, self.btnFadeOut, self.btnNorm):
             w.setEnabled(False)
@@ -569,7 +623,7 @@ class Mp3Widget(QWidget):
         i controlli restano attivi e l'operatore può ritentare."""
         logger.error(f"{action} failed for {self.mp3file.file_name}: {exc}")
         self.set_filename_text(f"⚠ {os.path.basename(self.mp3file.file_name)}")
-        self.filename_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self._show_error()
         self.filename_label.setToolTip(f"{action} fallito: {exc}")
 
     def on_play_pause_clicked(self):

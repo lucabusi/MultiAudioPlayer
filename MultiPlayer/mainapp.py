@@ -9,6 +9,7 @@ from audio_warmup import AudioWarmup
 from mp3widget import Mp3Widget, WidgetLayout
 from project_manager import ProjectManager
 from grid_manager import GridManager
+import theme
 from constants import (APP_VERSION, POLL_INTERVAL_MS, DEFAULT_BACKEND,
                        SETTINGS_ORG, SETTINGS_APP, SETTINGS_BACKEND_KEY)
 
@@ -472,6 +473,12 @@ def run_app():
     # ("Input #0, mp3, ...") per ogni file aperto: rumore puro nei log.
     os.environ.setdefault('QT_LOGGING_RULES', 'qt.multimedia.ffmpeg*=false')
     app = QApplication(sys.argv)
+    # Fusion segue la palette su ogni piattaforma: menu, dialoghi e barre di
+    # scorrimento prendono il tema scuro come i widget.
+    app.setStyle('Fusion')
+    app.setPalette(theme.palette())
+    theme.load_fonts()
+    app.setFont(theme.font(theme.FONT, app.font()))
     main_app = MainApp()
     return app, main_app
 

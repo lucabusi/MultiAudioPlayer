@@ -88,26 +88,27 @@ def compute_envelope(file_name: str, width: int = WAVEFORM_WIDTH) -> tuple[np.nd
 
 def render_envelope(min_vals: np.ndarray, max_vals: np.ndarray,
                     height: int = WAVEFORM_HEIGHT, gain: float = 1.0) -> bytes:
-    """Disegna l'envelope (scalato per `gain`) e ritorna JPEG bytes.
+    """Disegna l'envelope (scalato per `gain`) e ritorna PNG bytes: forma
+    bianca su fondo trasparente, una maschera che la UI colora col tema.
     Il canvas è largo len(min_vals): il loop è limitato dalla lunghezza
     reale degli array, quindi file più corti della width richiesta non
     possono causare accessi fuori range."""
     width = len(min_vals)
-    canvas = np.full((height, width, 3), 255, dtype=np.uint8)
+    canvas = np.zeros((height, width, 4), dtype=np.uint8)
     center = height // 2
     ys1 = np.clip((center + (min_vals * gain * center)).astype(np.int32), 0, height - 1)
     ys2 = np.clip((center + (max_vals * gain * center)).astype(np.int32), 0, height - 1)
 
-    blue = np.array([0, 0, 255], dtype=np.uint8)
+    white = np.array([255, 255, 255, 255], dtype=np.uint8)
     for x in range(width):
         y1, y2 = ys1[x], ys2[x]
         if y1 <= y2:
-            canvas[y1:y2 + 1, x] = blue
+            canvas[y1:y2 + 1, x] = white
         else:
-            canvas[y2:y1 + 1, x] = blue
+            canvas[y2:y1 + 1, x] = white
 
     buf = io.BytesIO()
-    Image.fromarray(canvas).save(buf, 'JPEG')
+    Image.fromarray(canvas, 'RGBA').save(buf, 'PNG', compress_level=1)
     return buf.getvalue()
 
 

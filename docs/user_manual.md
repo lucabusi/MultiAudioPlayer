@@ -81,6 +81,10 @@ La finestra è composta da:
   Ogni cella ospita al massimo un widget-traccia; le celle vuote restano visibili come
   bersaglio di drop.
 
+Tutta l'app usa il tema scuro **Foyer**, uguale in ogni layout: fondo e pannelli blu-ardesia,
+testi chiari, tempi in carattere a larghezza fissa (JetBrains Mono, il resto in Inter; i font
+sono inclusi nel programma). Anche menu e finestre di dialogo seguono il tema.
+
 ---
 
 ## Guida all'uso
@@ -123,8 +127,10 @@ chiusura viene interrotta invece di perdere il lavoro.
 | Pulsante layout | Menu di scelta del layout del widget |
 | Progress bar | Click per fare seek nel punto corrispondente |
 
-I bottoni cambiano colore per segnalare lo stato: riproduzione in corso, fade in attivo,
-fade out attivo.
+Ogni bottone ha il colore del suo ruolo: verde Play, corallo Stop, ambra i fade,
+grigio-azzurro le funzioni di servizio (Remove, Normalize, layout). A riposo il bottone è
+tinto; diventa pieno quando la funzione è attiva: Play pieno verde durante la riproduzione e
+pieno ambra in pausa, Fade In/Out pieni ambra mentre la dissolvenza è in corso.
 
 ---
 
@@ -181,9 +187,9 @@ Le rampe sono lineari e la durata è impostabile tra 0 e 10 secondi.
 
 ## Waveform
 
-La forma d'onda del file è disegnata come sfondo della progress bar, con un overlay verde che
-indica l'avanzamento. Il calcolo avviene in un thread separato: finché non è pronta, la barra
-mostra un fondo piatto.
+La forma d'onda del file è disegnata come sfondo della progress bar, su fondo scuro: la parte
+già suonata è verde, il resto grigio, e una linea chiara segna il punto di riproduzione. Il
+calcolo avviene in un thread separato: finché non è pronta, la barra mostra un fondo piatto.
 
 L'envelope min/max viene **cachato su disco** in `.npz`, nella cartella
 `mp3player_waveforms` dentro la directory temporanea di sistema. La chiave di cache include

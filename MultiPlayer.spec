@@ -102,6 +102,11 @@ a = Analysis(
     pathex=[os.path.join(project_dir, 'MultiPlayer')],
     binaries=[],
     datas=[
+        # Font del tema Foyer (theme.py li cerca in fonts/ accanto ai moduli).
+        (os.path.join('MultiPlayer', 'fonts', 'Inter[opsz,wght].ttf'), 'fonts'),
+        (os.path.join('MultiPlayer', 'fonts', 'JetBrainsMono[wght].ttf'), 'fonts'),
+        (os.path.join('MultiPlayer', 'fonts', 'OFL-inter.txt'), 'fonts'),
+        (os.path.join('MultiPlayer', 'fonts', 'OFL-jetbrainsmono.txt'), 'fonts'),
         # Aggiungi qui eventuali risorse non-Python:
         # ('assets', 'assets'),
         # ('config.json', '.'),
