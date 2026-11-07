@@ -7,6 +7,7 @@ file di `audio_test/`, quindi non serve un device audio.
     python tests/test_regressions.py     # runner autonomo
     pytest tests/                        # oppure via pytest
 """
+import functools
 import os
 import subprocess
 import sys
@@ -48,6 +49,24 @@ def _pump(ms=200):
     QTimer.singleShot(ms, lambda: done.append(1))
     while not done:
         app.processEvents()
+
+
+def _su_font_reali(test):
+    """Test che misura testi: su Windows offscreen non ha un vero font ("000:00"
+    a 7pt misura 54px, contro i ~28 reali), quindi lì gira in un processo a
+    parte con la piattaforma `windows`, come i suoi font veri."""
+    @functools.wraps(test)
+    def wrapper():
+        if sys.platform == 'win32' and os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
+            env = dict(os.environ, QT_QPA_PLATFORM='windows')
+            code = (f"import sys; sys.path.insert(0, {os.path.dirname(os.path.abspath(__file__))!r}); "
+                    f"import test_regressions as T; T.{test.__name__}.__wrapped__()")
+            r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                               timeout=120, env=env)
+            assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
+            return
+        test()
+    return wrapper
 
 
 def _is_green(btn):
@@ -608,8 +627,13 @@ _ATTRS_POS = sorted({a for e, n in _NUOVI_LAYOUT.values() for a in e + n}
 def _nuovo_widget(layout='STANDARD', fname='pink_panther.mp3'):
     from mp3file import Mp3File
     from mp3widget import Mp3Widget, WidgetLayout
+    from PySide6.QtCore import Qt
     _app()
-    return Mp3Widget(Mp3File(os.path.join(AUD, fname), backend='qt'), layout=WidgetLayout[layout])
+    w = Mp3Widget(Mp3File(os.path.join(AUD, fname), backend='qt'), layout=WidgetLayout[layout])
+    # Con una piattaforma vera (_su_font_reali) niente finestre a schermo: il
+    # sistema limiterebbe le dimensioni a quelle del monitor.
+    w.setAttribute(Qt.WA_DontShowOnScreen)
+    return w
 
 
 def _posizioni(w):
@@ -869,6 +893,7 @@ def test_tempi_in_forma_breve_quando_non_entrano():
     assert largo == ('Elapsed: 00:05', 'Remaining: 01:05'), largo
 
 
+@_su_font_reali
 def test_etichette_brevi_in_tutti_i_layout():
     from mp3widget import WidgetLayout
     w = _nuovo_widget('TOUCH')
@@ -905,6 +930,7 @@ def test_touch_pulsante_layout_accanto_a_norm():
         assert 0 <= layout[0] - (norm[0] + norm[2]) <= 8, (taglia, norm, layout)
 
 
+@_su_font_reali
 def test_touch_tempi_leggibili_alla_larghezza_minima():
     # Il pulsante layout in seconda riga toglie spazio alle label: i tempi,
     # anche oltre i 100 minuti, devono entrare comunque.
@@ -1415,6 +1441,7 @@ def _riempimento(lbl):
     return entra, max(br.width() / lungo, br.height() / spesso)
 
 
+@_su_font_reali
 def test_testi_label_riempiono_lo_spazio():
     from fluid_layout import LAYOUT_SPECS
     from mp3widget import WidgetLayout
