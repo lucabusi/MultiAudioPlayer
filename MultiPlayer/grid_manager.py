@@ -37,7 +37,7 @@ class GridManager:
         keep their height, so previously expanded rows aren't shrunk back when
         widgets above them are removed.
 
-        Widget con una dimensione massima (DENSE_A, STRIP_A): se occupano da
+        Widget con una dimensione massima (DENSE_A, MIXER): se occupano da
         soli una riga o una colonna, questa si stringe al widget e lo spazio
         libero va a una riga o colonna vuota, altrimenti Qt li distanzierebbe.
         """

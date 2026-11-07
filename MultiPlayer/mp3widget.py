@@ -34,7 +34,8 @@ class WidgetLayout(Enum):
     STANDARD = 3
     COMPACT_V = 4
     DENSE_A = 5
-    STRIP_A = 6
+    MIXER = 6
+    STRIP_A = 6  # alias del vecchio nome: i .mpp salvati prima lo contengono ancora
 
 
 def _symbol_button(symbol: str, tooltip: str) -> QPushButton:
@@ -336,14 +337,14 @@ class Mp3Widget(QWidget):
         action_dense_a.triggered.connect(lambda: self.set_layout(WidgetLayout.DENSE_A))
         layout_menu.addAction(action_dense_a)
 
-        action_strip_a = QAction("Strip A", self)
-        action_strip_a.triggered.connect(lambda: self.set_layout(WidgetLayout.STRIP_A))
-        layout_menu.addAction(action_strip_a)
+        action_mixer = QAction("Mixer", self)
+        action_mixer.triggered.connect(lambda: self.set_layout(WidgetLayout.MIXER))
+        layout_menu.addAction(action_mixer)
 
         self.btnChangeLayout.setMenu(layout_menu)
         self.layout_menu = layout_menu
 
-        # Solo STRIP_A: le azioni secondarie stanno nel menu "⋯".
+        # Solo MIXER: le azioni secondarie stanno nel menu "⋯".
         self.btnMore = QToolButton()
         self.btnMore.setIcon(icons.icon('more'))
         self.btnMore.setToolTip("Altro")

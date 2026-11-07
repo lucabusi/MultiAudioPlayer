@@ -604,7 +604,7 @@ def test_app_funziona_senza_moduli_esclusi_dall_exe():
 
 
 # ---------------------------------------------------------------------------
-# nuovi layout per-widget (DENSE_A, STRIP_A):
+# nuovi layout per-widget (DENSE_A, MIXER):
 # devono comporsi, non lasciare residui sui 4 layout storici, sopravvivere al
 # salvataggio .mpp e tenere sincronizzati i controlli aggiunti.
 # ---------------------------------------------------------------------------
@@ -614,7 +614,7 @@ _NUOVI_LAYOUT = {
     # layout: (widget attesi nel grid, widget che NON devono esserci)
     'DENSE_A': (_COMUNI + ['lblElapsedTime', 'lblRemainingTime', 'spinboxFadeTime',
                            'btnChangeLayout'], ['btnRemove']),
-    'STRIP_A': ([n for n in _COMUNI if n != 'lblVolume']
+    'MIXER': ([n for n in _COMUNI if n != 'lblVolume']
                 + ['btnMore', 'lblElapsedTime', 'lblRemainingTime'],
                 ['btnChangeLayout', 'btnRemove', 'btnNorm', 'lblVolume']),
 }
@@ -669,7 +669,7 @@ def test_geometrie_specifiche_dei_nuovi_layout():
     assert w.btnPlay.text() == ''   # solo simbolo
     assert w.maximumHeight() == 46
     assert w.progress_bar.receivers("2clicked(double)") >= 1   # seek ancora collegato
-    w.set_layout(type(w.widgetLayout).STRIP_A); _pump(50)
+    w.set_layout(type(w.widgetLayout).MIXER); _pump(50)
     assert w.slidVolume.orientation() == Qt.Vertical
     assert w.btnFadeIn.text() == '' and w.btnPlay.text() == ''
     assert w.maximumWidth() == 176 and w.maximumHeight() == 16777215
@@ -717,14 +717,14 @@ def test_nuovi_layout_salvati_e_ricaricati_nel_progetto():
 
 def test_menu_layout_ha_una_voce_per_ogni_layout():
     from mp3widget import WidgetLayout
-    w = _nuovo_widget('STRIP_A')
+    w = _nuovo_widget('MIXER')
     voci = [a.text() for a in w.btnChangeLayout.menu().actions()]
     w.shutdown()
     assert len(voci) == len(WidgetLayout) == 6, voci
 
 
 def test_strip_a_menu_piu_fade_e_sottomenu_layout():
-    w = _nuovo_widget('STRIP_A')
+    w = _nuovo_widget('MIXER')
     menu = w.btnMore.menu()
     sottomenu = [a for a in menu.actions() if a.menu() is w.layout_menu]
     fade3 = [a for a in menu.actions() if a.text() == 'Fade 3s']
@@ -811,7 +811,7 @@ def test_rettangoli_proporzionali_alla_cella():
         fascia = {getattr(w, n) for n in (fisso, *elastici) if n}
         for c in _piazzati(w):
             if c in fascia:
-                continue  # in fascia per scelta: coperti dai test di STRIP_A
+                continue  # in fascia per scelta: coperti dai test di MIXER
             x, y, cw, ch = g.placement(c)
             attesi = (x * sx, y * sy, cw * sx, ch * sy)
             reali = c.geometry().getRect()
@@ -909,8 +909,8 @@ def test_etichette_brevi_in_tutti_i_layout():
     _ridimensiona(w, 4000, 127)
     trascorso = w.lblElapsedTime.text()
     w.shutdown()
-    # STRIP_A per scelta mostra solo i tempi.
-    attesi = {n: '-01:05' if n == 'STRIP_A' else 'Remaining: 01:05' for n in testi}
+    # MIXER per scelta mostra solo i tempi.
+    attesi = {n: '-01:05' if n == 'MIXER' else 'Remaining: 01:05' for n in testi}
     assert testi == attesi, testi
     assert trascorso == 'Elapsed: 00:05', trascorso
 
@@ -978,6 +978,37 @@ def test_allineamenti_uguali_in_tutti_i_layout():
     a_sinistra = Qt.AlignLeft | Qt.AlignVCenter
     atteso = (a_sinistra, a_sinistra, a_sinistra, Qt.AlignCenter, Qt.AlignHCenter, Qt.AlignRight)
     assert all(esito == atteso for esito in esiti.values()), esiti
+
+
+def test_dense_a_layout_a_sx_trasporto_a_dx_e_spazio_a_nome_e_waveform():
+    # DENSE_A: selettore layout primo a sx, play/stop a dx prima dei fade;
+    # tempi, fade, gain e volume più stretti, lo spazio va a nome e waveform.
+    w = _nuovo_widget('DENSE_A')
+    w.show()
+    _ridimensiona(w, 982, 46)
+    attesi = ['btnChangeLayout', 'filename_label', 'progress_bar', 'lblElapsedTime',
+              'lblRemainingTime', 'spinboxFadeTime', 'spinboxGain', 'slidVolume', 'lblVolume',
+              'btnPlay', 'btnStop', 'btnFadeIn', 'btnFadeOut']
+    geo = {a: getattr(w, a).geometry() for a in attesi}
+    w.shutdown()
+    assert sorted(attesi, key=lambda a: geo[a].x()) == attesi
+    prima = {'lblElapsedTime': 100, 'lblRemainingTime': 110, 'spinboxFadeTime': 80,
+             'spinboxGain': 85, 'slidVolume': 84}
+    assert all(geo[a].width() < larg for a, larg in prima.items()), {a: geo[a].width() for a in prima}
+    assert geo['filename_label'].width() > 109 and geo['progress_bar'].width() > 150
+
+
+def test_layout_strip_a_si_chiama_mixer_e_i_vecchi_progetti_si_caricano():
+    # Rinominato STRIP_A -> Mixer: i .mpp salvati prima hanno ancora "STRIP_A".
+    from mp3widget import WidgetLayout
+    w = _nuovo_widget('STANDARD')
+    voci = [a.text() for a in w.layout_menu.actions()]
+    w.apply_state({'layout': 'STRIP_A'})
+    caricato, salvato = w.widgetLayout, w.to_state()['layout']
+    w.shutdown()
+    assert 'Mixer' in voci and 'Strip A' not in voci, voci
+    assert caricato is WidgetLayout.MIXER
+    assert salvato == 'MIXER'
 
 
 def test_tempi_sempre_nella_stessa_forma():
@@ -1097,7 +1128,7 @@ def test_testi_entrano_alla_dimensione_minima_su_font_reali():
 
 
 # ---------------------------------------------------------------------------
-# DENSE_A = righe compatte, STRIP_A = channel strip da mixer: la griglia esterna
+# DENSE_A = righe compatte, MIXER = channel strip da mixer: la griglia esterna
 # non deve spaziare i widget che hanno una dimensione massima.
 # ---------------------------------------------------------------------------
 def _finestra(*layout_e_cella):
@@ -1152,7 +1183,7 @@ def test_dense_impacchettate_anche_con_tutte_le_righe_iniziali_occupate():
 
 
 def test_strip_affiancate_strette_e_alte():
-    m = _finestra(('STRIP_A', (0, 0)), ('STRIP_A', (0, 1)), ('STRIP_A', (0, 2)))
+    m = _finestra(('MIXER', (0, 0)), ('MIXER', (0, 1)), ('MIXER', (0, 2)))
     geo = [w.geometry() for w in m.mp3_widgets]
     spazio = m.grid_layout.horizontalSpacing()
     alto_finestra = m.height()
@@ -1176,7 +1207,7 @@ def test_cambio_layout_a_caldo_aggiorna_la_griglia():
     g = m.grid_layout
     w.set_layout(WidgetLayout.DENSE_A)
     compatta = g.rowStretch(0)
-    w.set_layout(WidgetLayout.STRIP_A)
+    w.set_layout(WidgetLayout.MIXER)
     mixer = (g.columnStretch(0), g.rowStretch(0))
     w.set_layout(WidgetLayout.TOUCH)
     normale = (g.columnStretch(0), g.rowStretch(0))
@@ -1335,9 +1366,9 @@ def test_simboli_scalano_col_pulsante():
 def test_strip_a_nome_brano_verticale():
     from fluid_layout import LAYOUT_SPECS
     from mp3widget import WidgetLayout
-    w = _nuovo_widget('STRIP_A', 'pink_panther.mp3')
+    w = _nuovo_widget('MIXER', 'pink_panther.mp3')
     w.set_filename_text('un nome di brano molto lungo che non entra.mp3')
-    w.resize(*LAYOUT_SPECS['STRIP_A']['ref'])
+    w.resize(*LAYOUT_SPECS['MIXER']['ref'])
     w.show(); _pump(50)
     lbl = w.filename_label
     from PySide6.QtCore import QRect, Qt
@@ -1353,8 +1384,8 @@ def test_strip_a_nome_brano_verticale():
 
 def _strip_a_ref():
     from fluid_layout import LAYOUT_SPECS
-    w = _nuovo_widget('STRIP_A')
-    w.resize(*LAYOUT_SPECS['STRIP_A']['ref'])
+    w = _nuovo_widget('MIXER')
+    w.resize(*LAYOUT_SPECS['MIXER']['ref'])
     w.show(); _pump(50)
     return w
 
@@ -1378,7 +1409,7 @@ def test_strip_a_comandi_in_una_colonna():
 def test_strip_a_larghezza_minima_ridotta():
     # Richiesta: 70% della larghezza minima precedente del widget (132px,
     # bordo del frame compreso).
-    w = _nuovo_widget('STRIP_A')
+    w = _nuovo_widget('MIXER')
     minima = w.minimumSizeHint().width()
     w.shutdown()
     assert minima <= round(132 * 0.7), minima
@@ -1394,12 +1425,15 @@ def test_strip_a_tempi_solo_numeri_elapsed_sopra():
     assert esito == ('00:00', True, True, False, True, True), esito
 
 
-def test_strip_a_waveform_verticale_sottile():
+def test_mixer_waveform_al_centro_slider_a_dx():
+    # MIXER: lo slider verticale sta stretto sul bordo destro, lo spazio
+    # centrale va alla waveform (prima era sottile e lo slider in mezzo).
     from PySide6.QtCore import QPointF, Qt, QEvent
     from PySide6.QtGui import QMouseEvent
     w = _strip_a_ref()
     pb = w.progress_bar
     g, nome, slid = pb.geometry(), w.filename_label.geometry(), w.slidVolume.geometry()
+    destra = w.btnPlay.geometry().right()
     frazioni = []
     pb.clicked.connect(frazioni.append)
     for y in (pb.height() - 2, 2):   # in basso = inizio, in alto = fine
@@ -1407,15 +1441,16 @@ def test_strip_a_waveform_verticale_sottile():
                                        QPointF(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
     w.shutdown()
     assert pb.vertical
-    assert g.width() <= 10 and g.height() > 20 * g.width(), g
     assert nome.right() < g.left() and g.right() < slid.left(), (nome, g, slid)
+    assert abs(slid.right() - destra) <= 2, (slid, destra)
+    assert g.width() > 2 * slid.width() and slid.width() <= 40, (g, slid)
     assert frazioni[0] < 0.05 and frazioni[1] > 0.95, frazioni
 
 
 def test_riga_lasciata_dalle_strip_non_ruba_altezza():
     # Le strip spostate tutte in riga 0 occupavano metà finestra: la riga 1,
     # rimasta vuota, conservava lo stretch alto delle strip.
-    m = _finestra(('STRIP_A', (0, 0)), ('STRIP_A', (1, 0)))
+    m = _finestra(('MIXER', (0, 0)), ('MIXER', (1, 0)))
     w = m.mp3_widgets[1]
     m.grid_layout.removeWidget(w)
     m.grid_layout.addWidget(w, 0, 1)
@@ -1475,7 +1510,7 @@ def test_testi_label_riempiono_lo_spazio():
 
 
 def _strip_a_a(width, height):
-    w = _nuovo_widget('STRIP_A')
+    w = _nuovo_widget('MIXER')
     w.set_filename_text('01 - Pink Panther Theme (Henry Mancini).mp3')
     w.show()
     _ridimensiona(w, width, height)

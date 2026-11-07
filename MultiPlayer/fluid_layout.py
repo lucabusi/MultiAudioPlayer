@@ -19,7 +19,7 @@ MAX_FONT_SCALE = 2.5
 # band: facoltativo, (fisso, (elastici...)): il fisso ha larghezza che segue
 #      l'altezza del widget, gli elastici alla sua destra si spartiscono il resto.
 # gain_font_mid: facoltativo, gain a metà tra il font comune e quello dei tempi.
-# max: facoltativo, limite del widget: DENSE_A resta una riga, STRIP_A una striscia.
+# max: facoltativo, limite del widget: DENSE_A resta una riga, MIXER una striscia.
 # narrow: facoltativo, {controllo: (x, larghezza)} in pixel alla larghezza min:
 #      tra min e ref si passa linearmente da qui a items, così a cedere spazio
 #      sono i controlli scelti e non tutti in proporzione.
@@ -106,22 +106,22 @@ LAYOUT_SPECS = {
     'DENSE_A': {
         'ref': (982, 46), 'min': (680, 40), 'max': (QWIDGETSIZE_MAX, 46), 'slider_vertical': False,
         'items': {
-            'btnPlay':          (10, 10, 28, 26),
-            'btnStop':          (44, 10, 28, 26),
-            'filename_label':   (78, 10, 109, 26),
-            'progress_bar':     (193, 10, 150, 26),
-            'lblElapsedTime':   (349, 10, 100, 26),
-            'lblRemainingTime': (455, 10, 110, 26),
-            'spinboxFadeTime':  (571, 10, 80, 26),
-            'spinboxGain':      (657, 10, 85, 26),
-            'slidVolume':       (748, 10, 84, 26),
-            'lblVolume':        (838, 10, 30, 26),
-            'btnFadeIn':        (874, 10, 28, 26),
-            'btnFadeOut':       (908, 10, 28, 26),
-            'btnChangeLayout':  (942, 10, 30, 26),
+            'btnChangeLayout':  (10, 10, 30, 26),
+            'filename_label':   (46, 10, 169, 26),
+            'progress_bar':     (221, 10, 209, 26),
+            'lblElapsedTime':   (436, 10, 72, 26),
+            'lblRemainingTime': (514, 10, 80, 26),
+            'spinboxFadeTime':  (600, 10, 60, 26),
+            'spinboxGain':      (666, 10, 64, 26),
+            'slidVolume':       (736, 10, 64, 26),
+            'lblVolume':        (806, 10, 30, 26),
+            'btnPlay':          (842, 10, 28, 26),
+            'btnStop':          (876, 10, 28, 26),
+            'btnFadeIn':        (910, 10, 28, 26),
+            'btnFadeOut':       (944, 10, 28, 26),
         },
     },
-    'STRIP_A': {
+    'MIXER': {
         'ref': (157, 460), 'min': (89, 300), 'max': (176, QWIDGETSIZE_MAX), 'slider_vertical': True,
         'filename_vertical': True, 'progress_vertical': True, 'short_times': True,
         'band': ('filename_label', ('progress_bar', 'slidVolume')), 'gain_font_mid': True,
@@ -130,8 +130,8 @@ LAYOUT_SPECS = {
             'lblElapsedTime':   (10, 40, 137, 20),
             'lblRemainingTime': (10, 64, 137, 20),
             'filename_label':   (10, 90, 20, 194),
-            'progress_bar':     (36, 90, 8, 194),
-            'slidVolume':       (50, 90, 97, 194),
+            'progress_bar':     (36, 90, 79, 194),
+            'slidVolume':       (121, 90, 26, 194),
             'spinboxGain':      (10, 290, 137, 22),
             'btnPlay':          (10, 318, 137, 30),
             'btnFadeIn':        (10, 352, 137, 30),
